@@ -83,6 +83,11 @@ func New(factory Factory, options *Options) (*Server, error) {
 		originChekcer = func(r *http.Request) bool {
 			return matcher.MatchString(r.Header.Get("Origin"))
 		}
+	} else {
+		// Default: allow all origins (auth provides protection)
+		originChekcer = func(r *http.Request) bool {
+			return true
+		}
 	}
 
 	server := &Server{
