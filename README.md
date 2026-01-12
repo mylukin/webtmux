@@ -7,7 +7,13 @@ A web-based terminal with tmux-specific features. Access your tmux sessions from
 Deploy webtmux as a service on [Sprite](https://sprites.app):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/chrismccord/webtmux/main/builds/webtmux-linux-amd64 -o /usr/local/bin/webtmux && chmod +x /usr/local/bin/webtmux && sprite-env services create webtmux --cmd /usr/local/bin/webtmux --args='-w,--no-auth,tmux,new-session,-A,-s,main' --http-port 8080
+curl -fsSL https://raw.githubusercontent.com/chrismccord/webtmux/main/builds/webtmux-linux-amd64 \
+  -o /usr/local/bin/webtmux && \
+  chmod +x /usr/local/bin/webtmux && \
+  sprite-env services create webtmux \
+    --cmd /usr/local/bin/webtmux \
+    --args='-w,--no-auth,tmux,new-session,-A,-s,main' \
+    --http-port 8080
 ```
 
 ## Features
