@@ -262,8 +262,11 @@ class WebTmux {
       // Tell server to expect base64 encoded input
       this.sendMessage(MSG.SetEncoding, 'base64');
 
-      // Send initial size
-      setTimeout(() => this.sendResize(), 100);
+      // Send initial size and focus terminal
+      setTimeout(() => {
+        this.sendResize();
+        this.terminal.focus();
+      }, 100);
 
       // Switch to pending session if we reconnected after session ended
       if (this.pendingSessionSwitch) {
@@ -416,23 +419,12 @@ class WebTmux {
   // Handle OSC 52 clipboard sequences from tmux
   // Format: ESC ] 52 ; Pc ; Pd BEL  or  ESC ] 52 ; Pc ; Pd ESC \
   handleOSC52(data) {
-    // Look for OSC 52 start sequence - use charCode to be safe
     const ESC = String.fromCharCode(0x1b);
     const oscStart = ESC + ']52;';
     let result = data;
-
-    // Debug: show what we're looking for vs what we have
-    console.log('Looking for oscStart codes:', [...oscStart].map(c => c.charCodeAt(0).toString(16)));
-    const escIdx = data.indexOf(ESC);
-    if (escIdx !== -1) {
-      console.log('Found ESC at', escIdx, ', next 6 chars:', [...data.substring(escIdx, escIdx + 6)].map(c => c.charCodeAt(0).toString(16)));
-    }
-
     let startIdx = data.indexOf(oscStart);
 
     while (startIdx !== -1) {
-      console.log('OSC 52 start found at index:', startIdx);
-
       // Find the terminator (BEL \x07 or ST \x1b\\)
       let endIdx = -1;
       let termLen = 1;
@@ -450,20 +442,15 @@ class WebTmux {
         }
       }
 
-      if (endIdx === -1) {
-        console.log('OSC 52: No terminator found');
-        break;
-      }
+      if (endIdx === -1) break;
 
       // Extract the content between start and terminator
       const content = data.substring(startIdx + oscStart.length, endIdx);
-      console.log('OSC 52 content:', content);
 
       // Content format: Pc;Pd where Pc is selection and Pd is base64 data
       const semiIdx = content.indexOf(';');
       if (semiIdx !== -1) {
         const base64Data = content.substring(semiIdx + 1);
-        console.log('OSC 52 base64:', base64Data);
 
         if (base64Data && base64Data !== '?') {
           try {
@@ -471,14 +458,9 @@ class WebTmux {
             const binaryStr = atob(base64Data);
             const bytes = Uint8Array.from(binaryStr, c => c.charCodeAt(0));
             const text = new TextDecoder('utf-8').decode(bytes);
-            console.log('OSC 52 decoded text:', text);
-            navigator.clipboard.writeText(text).then(() => {
-              console.log('OSC 52: Copied to clipboard!');
-            }).catch(err => {
-              console.warn('OSC 52: Clipboard write failed:', err);
-            });
+            navigator.clipboard.writeText(text);
           } catch (e) {
-            console.warn('OSC 52: Base64 decode failed:', e);
+            // Silently ignore decode errors
           }
         }
       }
