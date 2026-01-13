@@ -413,41 +413,69 @@ class WebTmux {
   }
 
   // Handle OSC 52 clipboard sequences from tmux
-  // Format: ESC ] 52 ; c ; BASE64 BEL  or  ESC ] 52 ; c ; BASE64 ESC \
+  // Format: ESC ] 52 ; Pc ; Pd BEL  or  ESC ] 52 ; Pc ; Pd ESC \
   handleOSC52(data) {
-    // Debug: check for any OSC sequences
-    if (data.includes('\x1b]')) {
-      console.log('OSC sequence detected in data, length:', data.length);
-      // Show hex dump of first 100 chars for debugging
-      const hex = [...data.substring(0, 100)].map(c => c.charCodeAt(0).toString(16).padStart(2, '0')).join(' ');
-      console.log('Data hex:', hex);
-    }
-
-    // OSC 52 regex: \x1b]52;[cp]?;BASE64(\x07|\x1b\\)
-    // Note: selection param can be empty (;;), c, p, s, or 0-7
-    const osc52Regex = /\x1b\]52;[cpqs0-7]?;([A-Za-z0-9+/=]*?)(?:\x07|\x1b\\)/g;
-    let match;
+    // Look for OSC 52 start sequence
+    const oscStart = '\x1b]52;';
     let result = data;
+    let startIdx = data.indexOf(oscStart);
 
-    while ((match = osc52Regex.exec(data)) !== null) {
-      console.log('OSC 52 match found:', match[0].length, 'bytes');
-      const base64Data = match[1];
-      if (base64Data && base64Data !== '?') {
-        try {
-          // Decode base64 to get the clipboard text
-          const text = atob(base64Data);
-          console.log('OSC 52: Decoded text:', text);
-          navigator.clipboard.writeText(text).then(() => {
-            console.log('OSC 52: Copied to clipboard:', text.substring(0, 50) + (text.length > 50 ? '...' : ''));
-          }).catch(err => {
-            console.warn('OSC 52: Failed to copy to clipboard:', err);
-          });
-        } catch (e) {
-          console.warn('OSC 52: Failed to decode base64:', e);
+    while (startIdx !== -1) {
+      console.log('OSC 52 start found at index:', startIdx);
+
+      // Find the terminator (BEL \x07 or ST \x1b\\)
+      let endIdx = -1;
+      let termLen = 1;
+
+      for (let i = startIdx + oscStart.length; i < data.length; i++) {
+        if (data.charCodeAt(i) === 0x07) { // BEL
+          endIdx = i;
+          termLen = 1;
+          break;
+        }
+        if (data.charCodeAt(i) === 0x1b && i + 1 < data.length && data[i + 1] === '\\') { // ST
+          endIdx = i;
+          termLen = 2;
+          break;
         }
       }
-      // Remove OSC 52 sequence from output (don't display it)
-      result = result.replace(match[0], '');
+
+      if (endIdx === -1) {
+        console.log('OSC 52: No terminator found');
+        break;
+      }
+
+      // Extract the content between start and terminator
+      const content = data.substring(startIdx + oscStart.length, endIdx);
+      console.log('OSC 52 content:', content);
+
+      // Content format: Pc;Pd where Pc is selection and Pd is base64 data
+      const semiIdx = content.indexOf(';');
+      if (semiIdx !== -1) {
+        const base64Data = content.substring(semiIdx + 1);
+        console.log('OSC 52 base64:', base64Data);
+
+        if (base64Data && base64Data !== '?') {
+          try {
+            const text = atob(base64Data);
+            console.log('OSC 52 decoded text:', text);
+            navigator.clipboard.writeText(text).then(() => {
+              console.log('OSC 52: Copied to clipboard!');
+            }).catch(err => {
+              console.warn('OSC 52: Clipboard write failed:', err);
+            });
+          } catch (e) {
+            console.warn('OSC 52: Base64 decode failed:', e);
+          }
+        }
+      }
+
+      // Remove this OSC sequence from output
+      const fullSeq = data.substring(startIdx, endIdx + termLen);
+      result = result.replace(fullSeq, '');
+
+      // Look for more
+      startIdx = data.indexOf(oscStart, startIdx + 1);
     }
 
     return result;
