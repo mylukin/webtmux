@@ -2,20 +2,6 @@
 
 A web-based terminal with tmux-specific features. Access your tmux sessions from any browser with a visual pane layout, touch-friendly controls, and automatic scroll-to-copy-mode.
 
-## Quick Install
-
-One-line installation (auto-detects OS/architecture and sets up as a service):
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/mylukin/webtmux/main/install.sh | bash
-```
-
-Or install without service:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/mylukin/webtmux/main/install.sh | bash -s -- --no-service
-```
-
 ## Features
 
 ### Core Features
@@ -27,13 +13,13 @@ curl -fsSL https://raw.githubusercontent.com/mylukin/webtmux/main/install.sh | b
 - **Single Binary**: All assets embedded - just download and run
 - **Real-time Updates**: Layout changes sync automatically
 
-### WebTransport Support (New!)
+### WebTransport Support
 - **QUIC/WebTransport**: Lower latency transport using HTTP/3 over UDP
 - **Automatic Fallback**: Falls back to WebSocket for Safari and older browsers
 - **Single Port**: WebSocket (TCP) and WebTransport (UDP) share the same port
 - **Better Performance**: Faster recovery from packet loss on poor networks
 
-### Customizable Keyboard Shortcuts (New!)
+### Customizable Keyboard Shortcuts
 - **Shortcuts Bar**: Customizable keyboard shortcuts bar for quick actions
 - **Improved Touch Targets**: Better tablet support (iPad Mini landscape optimized)
 - **Close Pane Button**: Easy pane management from mobile controls
@@ -75,6 +61,9 @@ sudo mv webtmux-linux-amd64 /usr/local/bin/webtmux
 # Clone the repository
 git clone https://github.com/mylukin/webtmux.git
 cd webtmux
+
+# Install frontend dependencies
+npm install
 
 # Build for current platform
 make build
@@ -198,6 +187,8 @@ WebTmux extends the gotty protocol with tmux-specific message types:
 ```
 webtmux/
 ├── main.go                 # CLI entry point
+├── package.json            # Frontend build dependencies (Tailwind, esbuild)
+├── tailwind.config.js      # Tailwind CSS configuration
 ├── server/                 # HTTP server & WebSocket/WebTransport handlers
 │   ├── transport.go        # Transport interface abstraction
 │   ├── ws_wrapper.go       # WebSocket transport
@@ -206,35 +197,48 @@ webtmux/
 ├── webtty/                 # WebTTY protocol implementation
 ├── pkg/tmux/               # Tmux controller
 ├── backend/localcommand/   # PTY backend
+├── scripts/                # Build scripts
+│   ├── build-vendor.mjs    # esbuild script for vendor bundles
+│   └── entries/            # ESM entry points for bundling
 ├── bindata/static/         # Embedded web assets (copied from resources/)
+│   ├── css/
+│   │   ├── tailwind.css    # Compiled Tailwind CSS
+│   │   └── xterm.css       # xterm.js styles
 │   ├── js/
-│   │   ├── gotty.js        # Bundled xterm.js + transport (from js/dist/)
-│   │   ├── webtmux.js      # Main frontend (from resources/js/)
+│   │   ├── gotty.js        # Transport layer (WebSocket/WebTransport)
+│   │   ├── webtmux.js      # Main frontend logic
+│   │   ├── vendor/         # Bundled npm packages (lit, xterm)
 │   │   └── components/     # Lit.js web components
 │   └── index.html
-├── js/                     # TypeScript build environment
+├── js/                     # TypeScript source for gotty.js
 │   ├── src/                # TypeScript source
 │   │   ├── main.ts         # Entry point
 │   │   ├── transport.ts    # Transport interface
 │   │   ├── websocket.ts    # WebSocket implementation
 │   │   └── webtransport.ts # WebTransport implementation
 │   ├── dist/               # Compiled JavaScript
-│   └── webpack.config.js   # Bundler config
+│   └── webpack.config.js   # Webpack config
 └── resources/              # Source static assets
+    ├── css/
+    │   └── tailwind.css    # Tailwind directives (source)
     ├── js/
     │   ├── webtmux.js      # Main frontend logic
-    │   └── components/     # Lit.js components (sidebar, mobile-controls, etc.)
+    │   ├── vendor/         # Generated vendor bundles
+    │   └── components/     # Lit.js components
     └── index.html          # HTML template
 ```
 
 ### Building
 
 ```bash
+# Install frontend dependencies (first time only)
+npm install
+
+# Production build (builds CSS, vendor bundles, and Go binary)
+make build
+
 # Development build (copies fresh assets)
 make dev
-
-# Production build
-make build
 
 # Cross-compile all platforms
 make cross-compile
@@ -249,7 +253,8 @@ make test
 ### Tech Stack
 
 - **Backend**: Go, gorilla/websocket, quic-go/webtransport-go
-- **Frontend**: xterm.js, Lit.js, Tailwind CSS (CDN)
+- **Frontend**: xterm.js, Lit.js, Tailwind CSS
+- **Build Tools**: esbuild (vendor bundling), Tailwind CLI
 - **Embedded Assets**: Go 1.16+ embed directive
 - **Transport**: WebSocket (TCP), WebTransport (UDP/QUIC)
 
