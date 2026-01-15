@@ -1,0 +1,12 @@
+{
+  "name": "webtmux",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build:css": "tailwindcss -i ./resources/css/tailwind.css -o ./resources/css/tailwind-out.css --minify",
+    "watch:css": "tailwindcss -i ./resources/css/tailwind.css -o ./resources/css/tailwind-out.css --watch"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.17"
+  }
+}

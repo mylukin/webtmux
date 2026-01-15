@@ -20,13 +20,20 @@ PLATFORMS = \
 
 export CGO_ENABLED=0
 
-.PHONY: all build clean test install cross-compile release help
+.PHONY: all build clean test install cross-compile release help build-css
 
 # Default target
 all: build
 
+# Build Tailwind CSS
+build-css:
+	@echo "Building Tailwind CSS..."
+	@npm run build:css
+
 # Sync resources to bindata (for embedding)
-sync-assets:
+sync-assets: build-css
+	@cp resources/index.html bindata/static/
+	@cp resources/css/tailwind-out.css bindata/static/css/tailwind.css
 	@cp -r resources/js/* bindata/static/js/
 
 # Build for current platform

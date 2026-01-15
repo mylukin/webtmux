@@ -14,9 +14,13 @@ Thumbs.db
 *.out
 
 # JavaScript/Node.js
+node_modules/
 js/node_modules/
 js/dist/
 js/typings/
+
+# Tailwind CSS output (built from source)
+resources/css/tailwind-out.css
 
 # Local build (not cross-compiled)
 /webtmux
