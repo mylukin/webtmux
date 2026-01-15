@@ -19,8 +19,10 @@ js/node_modules/
 js/dist/
 js/typings/
 
-# Tailwind CSS output (built from source)
+# Frontend build output (built from source)
 resources/css/tailwind-out.css
+resources/css/xterm.css
+resources/js/vendor/
 
 # Local build (not cross-compiled)
 /webtmux

@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="css/tailwind.css">
 
   <!-- xterm.js styles -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css" />
+  <link rel="stylesheet" href="css/xterm.css">
 
   <style>
     html, body {
@@ -53,11 +53,11 @@
   <script type="importmap">
   {
     "imports": {
-      "lit": "https://cdn.jsdelivr.net/npm/lit@3/+esm",
-      "lit/decorators.js": "https://cdn.jsdelivr.net/npm/lit@3/decorators.js/+esm",
-      "@xterm/xterm": "https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/+esm",
-      "@xterm/addon-fit": "https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/+esm",
-      "@xterm/addon-webgl": "https://cdn.jsdelivr.net/npm/@xterm/addon-webgl@0.18.0/+esm"
+      "lit": "./js/vendor/lit.js",
+      "lit/decorators.js": "./js/vendor/lit-decorators.js",
+      "@xterm/xterm": "./js/vendor/xterm.js",
+      "@xterm/addon-fit": "./js/vendor/xterm-addon-fit.js",
+      "@xterm/addon-webgl": "./js/vendor/xterm-addon-webgl.js"
     }
   }
   </script>
