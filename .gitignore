@@ -21,4 +21,12 @@ js/typings/
 # Local build (not cross-compiled)
 /webtmux
 
-# Don't ignore builds/ - we want prebuilt binaries in repo
+# Build output (use GitHub Releases for distribution)
+builds/
+
+# Playwright MCP temp files
+.playwright-mcp/
+
+# Coverage reports
+coverage.out
+coverage.html
