@@ -32,7 +32,7 @@ func NewWebTransportServer(options *Options, pathPrefix string) (*WebTransportSe
 		}
 	}
 
-	addr := fmt.Sprintf("%s:%s", options.Address, options.WebTransportPort)
+	addr := fmt.Sprintf("%s:%s", options.Address, options.Port)
 
 	wtServer := &webtransport.Server{
 		H3: &http3.Server{
@@ -74,7 +74,7 @@ func (wts *WebTransportServer) ListenAndServeTLS(ctx context.Context, certFile, 
 
 	wts.server.H3.Handler = handler
 
-	log.Printf("WebTransport server listening on %s:%s (UDP)", wts.options.Address, wts.options.WebTransportPort)
+	log.Printf("WebTransport server listening on %s:%s (UDP)", wts.options.Address, wts.options.Port)
 
 	// Run in a goroutine and handle context cancellation
 	errChan := make(chan error, 1)

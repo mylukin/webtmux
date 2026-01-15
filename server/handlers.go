@@ -444,7 +444,7 @@ func (server *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 		"var gotty_term = 'xterm';",
 		"var gotty_ws_query_args = '" + server.options.WSQueryArgs + "';",
 		fmt.Sprintf("var gotty_webtransport_enabled = %t;", server.options.EnableWebTransport),
-		"var gotty_webtransport_port = '" + server.options.WebTransportPort + "';",
+		// WebTransport uses the same port as HTTP (UDP instead of TCP)
 	}
 
 	w.Write([]byte(strings.Join(lines, "\n")))

@@ -44,8 +44,7 @@ func TestOptionsValidate(t *testing.T) {
 				EnableTLS:           true,
 				EnableTLSClientAuth: false,
 				EnableWebTransport:  true,
-				WebTransportPort:    "8443",
-			},
+							},
 			wantErr: false,
 		},
 		{
@@ -54,8 +53,7 @@ func TestOptionsValidate(t *testing.T) {
 				EnableTLS:           true,
 				EnableTLSClientAuth: true,
 				EnableWebTransport:  true,
-				WebTransportPort:    "8443",
-			},
+							},
 			wantErr: false,
 		},
 		{
@@ -149,9 +147,7 @@ func TestOptionsDefaults(t *testing.T) {
 	if opts.Port != "" {
 		t.Errorf("Port should default to empty, got %s", opts.Port)
 	}
-	if opts.WebTransportPort != "" {
-		t.Errorf("WebTransportPort should default to empty, got %s", opts.WebTransportPort)
-	}
+	// WebTransport now uses the same port as HTTP (no separate port config)
 
 	// Should validate without error
 	if err := opts.Validate(); err != nil {
@@ -172,8 +168,7 @@ func TestOptionsWithTypicalConfiguration(t *testing.T) {
 		TLSCrtFile:         "/etc/ssl/certs/server.crt",
 		TLSKeyFile:         "/etc/ssl/private/server.key",
 		EnableWebTransport: true,
-		WebTransportPort:   "8443",
-		EnableReconnect:    true,
+				EnableReconnect:    true,
 		ReconnectTime:      10,
 		MaxConnection:      100,
 		EnableWebGL:        true,
@@ -196,8 +191,7 @@ func TestOptionsWebTransportConfiguration(t *testing.T) {
 			options: &Options{
 				EnableTLS:          true,
 				EnableWebTransport: true,
-				WebTransportPort:   "",
-			},
+							},
 			wantErr: false,
 		},
 		{
@@ -205,8 +199,7 @@ func TestOptionsWebTransportConfiguration(t *testing.T) {
 			options: &Options{
 				EnableTLS:          true,
 				EnableWebTransport: true,
-				WebTransportPort:   "9443",
-			},
+							},
 			wantErr: false,
 		},
 		{
@@ -234,8 +227,7 @@ func BenchmarkOptionsValidate(b *testing.B) {
 	opts := &Options{
 		EnableTLS:          true,
 		EnableWebTransport: true,
-		WebTransportPort:   "8443",
-	}
+			}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

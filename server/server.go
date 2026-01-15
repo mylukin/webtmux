@@ -252,7 +252,7 @@ func (server *Server) Run(ctx context.Context, options ...RunOption) error {
 			}
 		}()
 
-		log.Printf("WebTransport server enabled on UDP port %s", server.options.WebTransportPort)
+		log.Printf("WebTransport server enabled on UDP port %s (same as HTTP)", server.options.Port)
 	}
 
 	go func() {

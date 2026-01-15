@@ -8,7 +8,7 @@ import { OurXterm } from "./xterm";
 declare var gotty_auth_token: string;
 declare var gotty_ws_query_args: string;
 declare var gotty_webtransport_enabled: boolean;
-declare var gotty_webtransport_port: string;
+// WebTransport uses same port as HTTP (UDP instead of TCP)
 
 /**
  * FallbackTransportFactory attempts WebTransport first, falls back to WebSocket on failure.
@@ -177,10 +177,10 @@ if (elem !== null) {
         window.location.pathname + 'ws' + queryArgs;
 
     // WebTransport URL (only if enabled and HTTPS)
+    // Uses same port as HTTP server (UDP instead of TCP)
     let wtUrl: string | null = null;
     if (httpsEnabled && gotty_webtransport_enabled && isWebTransportSupported()) {
-        const wtHost = window.location.hostname + ':' + gotty_webtransport_port;
-        wtUrl = 'https://' + wtHost + window.location.pathname + 'wt' + queryArgs;
+        wtUrl = 'https://' + window.location.host + window.location.pathname + 'wt' + queryArgs;
         console.log('WebTransport URL configured:', wtUrl);
     }
 

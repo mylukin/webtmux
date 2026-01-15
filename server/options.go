@@ -35,9 +35,8 @@ type Options struct {
 	EnableWebGL         bool   `hcl:"enable_webgl" flagName:"enable-webgl" flagDescribe:"Enable WebGL renderer" default:"true"`
 	Quiet               bool   `hcl:"quiet" flagName:"quiet" flagDescribe:"Don't log" default:"false"`
 
-	// WebTransport options
-	EnableWebTransport bool   `hcl:"enable_webtransport" flagName:"webtransport" flagDescribe:"Enable WebTransport support (requires TLS)" default:"false"`
-	WebTransportPort   string `hcl:"webtransport_port" flagName:"wt-port" flagDescribe:"WebTransport UDP port" default:"8443"`
+	// WebTransport options (uses same port as HTTP server, but UDP instead of TCP)
+	EnableWebTransport bool `hcl:"enable_webtransport" flagName:"webtransport" flagDescribe:"Enable WebTransport support (requires TLS, uses same port over UDP)" default:"false"`
 
 	TitleVariables map[string]interface{}
 }

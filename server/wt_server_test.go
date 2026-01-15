@@ -15,7 +15,7 @@ func TestNewWebTransportServer(t *testing.T) {
 			name: "valid options without origin check",
 			options: &Options{
 				Address:          "0.0.0.0",
-				WebTransportPort: "8443",
+				Port: "8443",
 				WSOrigin:         "",
 			},
 			pathPrefix: "/",
@@ -25,7 +25,7 @@ func TestNewWebTransportServer(t *testing.T) {
 			name: "valid options with origin regex",
 			options: &Options{
 				Address:          "localhost",
-				WebTransportPort: "9443",
+				Port: "9443",
 				WSOrigin:         `https://example\.com`,
 			},
 			pathPrefix: "/terminal/",
@@ -35,7 +35,7 @@ func TestNewWebTransportServer(t *testing.T) {
 			name: "invalid origin regex",
 			options: &Options{
 				Address:          "localhost",
-				WebTransportPort: "8443",
+				Port: "8443",
 				WSOrigin:         "[invalid regex",
 			},
 			pathPrefix: "/",
@@ -82,7 +82,7 @@ func TestNewWebTransportServer(t *testing.T) {
 func TestWebTransportServerClose(t *testing.T) {
 	options := &Options{
 		Address:          "127.0.0.1",
-		WebTransportPort: "8443",
+		Port: "8443",
 	}
 
 	server, err := NewWebTransportServer(options, "/")
@@ -100,7 +100,7 @@ func TestWebTransportServerClose(t *testing.T) {
 func TestWebTransportServerServer(t *testing.T) {
 	options := &Options{
 		Address:          "127.0.0.1",
-		WebTransportPort: "8443",
+		Port: "8443",
 	}
 
 	wts, err := NewWebTransportServer(options, "/test/")
@@ -146,7 +146,7 @@ func TestWebTransportServerAddressFormat(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			options := &Options{
 				Address:          tt.address,
-				WebTransportPort: tt.port,
+				Port: tt.port,
 			}
 
 			wts, err := NewWebTransportServer(options, "/")
@@ -200,7 +200,7 @@ func TestWebTransportServerOriginCheck(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			options := &Options{
 				Address:          "localhost",
-				WebTransportPort: "8443",
+				Port: "8443",
 				WSOrigin:         tt.wsOrigin,
 			}
 
@@ -234,7 +234,7 @@ func TestWebTransportServerPathPrefix(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			options := &Options{
 				Address:          "localhost",
-				WebTransportPort: "8443",
+				Port: "8443",
 			}
 
 			wts, err := NewWebTransportServer(options, tt.pathPrefix)
@@ -253,7 +253,7 @@ func TestWebTransportServerPathPrefix(t *testing.T) {
 func TestWebTransportServerMultipleClose(t *testing.T) {
 	options := &Options{
 		Address:          "127.0.0.1",
-		WebTransportPort: "8443",
+		Port: "8443",
 	}
 
 	server, err := NewWebTransportServer(options, "/")
@@ -277,7 +277,7 @@ func TestWebTransportServerMultipleClose(t *testing.T) {
 func TestWebTransportServerOptions(t *testing.T) {
 	options := &Options{
 		Address:          "192.168.1.1",
-		WebTransportPort: "9443",
+		Port: "9443",
 		WSOrigin:         `^https://trusted\.com$`,
 	}
 
@@ -322,7 +322,7 @@ func TestNewWebTransportServerNilOptions(t *testing.T) {
 func BenchmarkNewWebTransportServer(b *testing.B) {
 	options := &Options{
 		Address:          "0.0.0.0",
-		WebTransportPort: "8443",
+		Port: "8443",
 		WSOrigin:         `https://.*\.example\.com`,
 	}
 

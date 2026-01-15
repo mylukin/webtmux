@@ -13,7 +13,6 @@ func TestHandleConfig(t *testing.T) {
 	server := &Server{
 		options: &Options{
 			EnableWebTransport: true,
-			WebTransportPort:   "8443",
 			WSQueryArgs:        "test=1",
 		},
 	}
@@ -44,16 +43,13 @@ func TestHandleConfig(t *testing.T) {
 	if !strings.Contains(body, "gotty_webtransport_enabled = true") {
 		t.Error("Config should contain webtransport_enabled = true")
 	}
-	if !strings.Contains(body, "gotty_webtransport_port = '8443'") {
-		t.Error("Config should contain webtransport_port = '8443'")
-	}
+	// WebTransport uses same port as HTTP (no separate port config)
 }
 
 func TestHandleConfigWebTransportDisabled(t *testing.T) {
 	server := &Server{
 		options: &Options{
 			EnableWebTransport: false,
-			WebTransportPort:   "",
 			WSQueryArgs:        "",
 		},
 	}
@@ -320,7 +316,6 @@ func BenchmarkHandleConfig(b *testing.B) {
 	server := &Server{
 		options: &Options{
 			EnableWebTransport: true,
-			WebTransportPort:   "8443",
 			WSQueryArgs:        "test=1",
 		},
 	}
