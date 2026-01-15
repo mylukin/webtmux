@@ -178,13 +178,18 @@ WebTmux extends the gotty protocol with tmux-specific message types:
 - `7` TmuxSplitPane - Split current pane (h/v)
 - `8` TmuxClosePane - Close pane by ID
 - `9` TmuxCopyMode - Enter/exit copy mode
+- `A` TmuxSendCommand - Raw tmux command
 - `B` TmuxScrollUp - Scroll up in copy mode
 - `C` TmuxScrollDown - Scroll down in copy mode
 - `D` TmuxNewWindow - Create new window
+- `E` TmuxSwitchSession - Switch session by name
 
 **Server -> Client:**
 - `7` TmuxLayoutUpdate - Full layout JSON
+- `8` TmuxPaneOutput - Tmux pane-specific output
 - `9` TmuxModeUpdate - Copy mode state
+- `A` TmuxSessionInfo - Tmux session info
+- `B` TmuxError - Tmux error
 
 ## Development
 
@@ -201,16 +206,25 @@ webtmux/
 ├── webtty/                 # WebTTY protocol implementation
 ├── pkg/tmux/               # Tmux controller
 ├── backend/localcommand/   # PTY backend
-├── bindata/static/         # Embedded web assets
+├── bindata/static/         # Embedded web assets (copied from resources/)
 │   ├── js/
-│   │   ├── webtmux.js      # Main frontend
+│   │   ├── gotty.js        # Bundled xterm.js + transport (from js/dist/)
+│   │   ├── webtmux.js      # Main frontend (from resources/js/)
 │   │   └── components/     # Lit.js web components
 │   └── index.html
-├── js/src/                 # TypeScript source
-│   ├── transport.ts        # Transport interface
-│   ├── websocket.ts        # WebSocket implementation
-│   └── webtransport.ts     # WebTransport implementation
-└── resources/              # Source assets (for development)
+├── js/                     # TypeScript build environment
+│   ├── src/                # TypeScript source
+│   │   ├── main.ts         # Entry point
+│   │   ├── transport.ts    # Transport interface
+│   │   ├── websocket.ts    # WebSocket implementation
+│   │   └── webtransport.ts # WebTransport implementation
+│   ├── dist/               # Compiled JavaScript
+│   └── webpack.config.js   # Bundler config
+└── resources/              # Source static assets
+    ├── js/
+    │   ├── webtmux.js      # Main frontend logic
+    │   └── components/     # Lit.js components (sidebar, mobile-controls, etc.)
+    └── index.html          # HTML template
 ```
 
 ### Building
