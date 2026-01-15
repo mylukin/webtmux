@@ -59,8 +59,30 @@ class WebtmuxShortcuts extends LitElement {
       -webkit-tap-highlight-color: transparent;
     }
 
-    /* Mobile: Larger touch targets (Apple HIG recommends 44pt minimum) */
-    @media (max-width: 1023px) {
+    /* Tablet: iPad Mini landscape (1024px) and tablets up to 1279px */
+    @media (min-width: 768px) and (max-width: 1279px) {
+      :host {
+        padding: 10px 16px;
+      }
+
+      .shortcuts-bar {
+        gap: 12px;
+      }
+
+      .shortcut-btn {
+        min-width: 56px;
+        min-height: 50px;
+        padding: 12px 18px;
+        font-size: 16px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+    }
+
+    /* Phone: Smaller screens (< 768px) */
+    @media (max-width: 767px) {
       :host {
         padding: 8px 10px;
       }
@@ -109,8 +131,22 @@ class WebtmuxShortcuts extends LitElement {
       color: #4a9eff;
     }
 
-    /* Mobile: Larger settings button */
-    @media (max-width: 1023px) {
+    /* Tablet: Larger settings button */
+    @media (min-width: 768px) and (max-width: 1023px) {
+      .settings-btn {
+        min-width: 50px;
+        min-height: 50px;
+        padding: 12px;
+        font-size: 20px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+    }
+
+    /* Phone: Settings button */
+    @media (max-width: 767px) {
       .settings-btn {
         min-width: 44px;
         min-height: 44px;
