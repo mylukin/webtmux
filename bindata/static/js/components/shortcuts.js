@@ -142,12 +142,13 @@ class WebtmuxShortcuts extends LitElement {
     }
 
     /* Tablet: Larger settings button */
-    @media (min-width: 768px) and (max-width: 1023px) {
+    /* Tablet: iPad Mini landscape (1024px) and tablets up to 1279px */
+    @media (min-width: 768px) and (max-width: 1279px) {
       .settings-btn {
-        min-width: 50px;
+        min-width: 56px;
         min-height: 50px;
-        padding: 12px;
-        font-size: 20px;
+        padding: 12px 18px;
+        font-size: 18px;
         border-radius: 10px;
         display: flex;
         align-items: center;
@@ -446,10 +447,23 @@ class WebtmuxShortcuts extends LitElement {
     window.addEventListener('collapse-change', (e) => {
       this.collapsed = e.detail.collapsed;
     });
+
+    // Listen for open settings event from mobile controls
+    window.addEventListener('open-shortcuts-settings', () => {
+      this.showSettings = true;
+    });
   }
 
   updated(changedProperties) {
     super.updated(changedProperties);
+    // Make component visible when settings modal is open (overrides hidden class on mobile)
+    if (changedProperties.has('showSettings')) {
+      if (this.showSettings) {
+        this.style.display = 'block';
+      } else {
+        this.style.display = '';
+      }
+    }
     if (changedProperties.has('collapsed')) {
       if (this.collapsed) {
         this.classList.add('collapsed');

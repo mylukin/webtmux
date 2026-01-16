@@ -264,6 +264,36 @@ class WebtmuxMobileControls extends LitElement {
       transform: scale(0.95);
     }
 
+    .settings-btn {
+      flex-shrink: 0;
+      background: #1a1a2e;
+      border: 1px solid #0f3460;
+      border-radius: 6px;
+      color: #888;
+      padding: 8px 12px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.15s;
+      min-width: 44px;
+      min-height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-left: auto;
+    }
+
+    .settings-btn:hover {
+      border-color: #e94560;
+      color: #fff;
+    }
+
+    .settings-btn:active {
+      background: #0f3460;
+      border-color: #e94560;
+      color: #fff;
+      transform: scale(0.95);
+    }
+
     .window-tabs {
       display: flex;
       gap: 4px;
@@ -587,6 +617,11 @@ class WebtmuxMobileControls extends LitElement {
     window.webtmux?.terminal?.focus();
   }
 
+  openShortcutsSettings() {
+    // Dispatch event to open settings modal in shortcuts component
+    window.dispatchEvent(new CustomEvent('open-shortcuts-settings'));
+  }
+
   render() {
     const sessions = this.layout?.sessions || [];
     const showSessionBtn = sessions.length > 1;
@@ -676,6 +711,9 @@ class WebtmuxMobileControls extends LitElement {
               ${shortcut.label}
             </button>
           `)}
+          <button class="settings-btn" @click=${this.openShortcutsSettings} title="Configure shortcuts">
+            \u2699
+          </button>
         </div>
 
         ${this.layout?.windows?.length > 0 ? html`
