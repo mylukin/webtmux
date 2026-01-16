@@ -33,12 +33,22 @@ func New(command string, argv []string, headers map[string][]string, options ...
 
 	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
 
+	denyHeaders := map[string]struct{}{
+		"AUTHORIZATION":       {},
+		"PROXY-AUTHORIZATION": {},
+		"COOKIE":              {},
+		"SET-COOKIE":          {},
+	}
+
 	// Combine headers into key=value pairs to set as env vars
 	// Prefix the headers with "http_" so we don't overwrite any other env vars
 	// which potentially has the same name and to bring these closer to what
 	// a (F)CGI server would proxy to a backend service
 	// Replace hyphen with underscore and make them all upper case
 	for key, values := range headers {
+		if _, blocked := denyHeaders[strings.ToUpper(key)]; blocked {
+			continue
+		}
 		h := "HTTP_" + strings.Replace(strings.ToUpper(key), "-", "_", -1) + "=" + strings.Join(values, ",")
 		// log.Printf("Adding header: %s", h)
 		cmd.Env = append(cmd.Env, h)
