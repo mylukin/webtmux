@@ -8,6 +8,8 @@
 #
 # Or with custom options:
 #   curl -fsSL https://raw.githubusercontent.com/mylukin/webtmux/main/install.sh | bash -s -- --no-service
+#   curl -fsSL https://raw.githubusercontent.com/mylukin/webtmux/main/install.sh | bash -s -- --no-auth
+#   curl -fsSL https://raw.githubusercontent.com/mylukin/webtmux/main/install.sh | bash -s -- --password mypassword
 #
 
 set -e
@@ -27,6 +29,12 @@ NC='\033[0m' # No Color
 # Parse arguments
 INSTALL_SERVICE=true
 TMUX_SESSION="main"
+AUTH_MODE=""          # "", "no-auth", or "password"
+AUTH_PASSWORD=""
+AUTH_USERNAME="admin"
+LISTEN_ADDR="0.0.0.0"
+LISTEN_PORT=8080
+INTERACTIVE=true      # Enable interactive mode by default
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -38,15 +46,53 @@ while [[ $# -gt 0 ]]; do
             TMUX_SESSION="$2"
             shift 2
             ;;
+        --no-auth)
+            AUTH_MODE="no-auth"
+            INTERACTIVE=false
+            shift
+            ;;
+        --password)
+            AUTH_MODE="password"
+            AUTH_PASSWORD="$2"
+            INTERACTIVE=false
+            shift 2
+            ;;
+        --user)
+            AUTH_USERNAME="$2"
+            shift 2
+            ;;
+        --non-interactive)
+            INTERACTIVE=false
+            shift
+            ;;
+        --port)
+            LISTEN_PORT="$2"
+            shift 2
+            ;;
         --help)
             echo "WebTmux Installer"
             echo ""
             echo "Usage: install.sh [options]"
             echo ""
             echo "Options:"
-            echo "  --no-service    Don't install as a system service"
-            echo "  --session NAME  Tmux session name (default: main)"
-            echo "  --help          Show this help message"
+            echo "  --no-service       Don't install as a system service"
+            echo "  --session NAME     Tmux session name (default: main)"
+            echo "  --port PORT        Listen port (default: 8080)"
+            echo "  --no-auth          Disable authentication (NOT RECOMMENDED)"
+            echo "  --password PASS    Set authentication password"
+            echo "  --user USERNAME    Set authentication username (default: admin)"
+            echo "  --non-interactive  Skip interactive prompts (use defaults)"
+            echo "  --help             Show this help message"
+            echo ""
+            echo "Examples:"
+            echo "  # Interactive installation (will prompt for auth settings)"
+            echo "  curl -fsSL https://...install.sh | bash"
+            echo ""
+            echo "  # Install with specific password"
+            echo "  curl -fsSL https://...install.sh | bash -s -- --password mysecret"
+            echo ""
+            echo "  # Install without authentication (not recommended)"
+            echo "  curl -fsSL https://...install.sh | bash -s -- --no-auth"
             exit 0
             ;;
         *)
@@ -70,6 +116,202 @@ log_warn() {
 
 log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# Check if running in interactive mode (stdin is a terminal)
+is_interactive_terminal() {
+    [[ -t 0 ]]
+}
+
+# Prompt user for authentication choice
+prompt_auth_choice() {
+    if [[ "$INTERACTIVE" != true ]] || ! is_interactive_terminal; then
+        return
+    fi
+
+    # Skip if auth mode already set via command line
+    if [[ -n "$AUTH_MODE" ]]; then
+        return
+    fi
+
+    echo ""
+    echo -e "${BLUE}╔════════════════════════════════════════╗${NC}"
+    echo -e "${BLUE}║       Authentication Setup             ║${NC}"
+    echo -e "${BLUE}╚════════════════════════════════════════╝${NC}"
+    echo ""
+    echo "WebTmux can require authentication to access the terminal."
+    echo "This is HIGHLY RECOMMENDED for security."
+    echo ""
+    echo "Options:"
+    echo "  1) Enable authentication (recommended)"
+    echo "  2) Disable authentication (NOT recommended)"
+    echo ""
+
+    while true; do
+        read -p "Choose an option [1/2] (default: 1): " choice </dev/tty
+        case "${choice:-1}" in
+            1)
+                AUTH_MODE="password"
+                prompt_password
+                break
+                ;;
+            2)
+                echo ""
+                echo -e "${YELLOW}WARNING: Disabling authentication exposes your terminal to anyone!${NC}"
+                read -p "Are you sure? (yes/no): " confirm </dev/tty
+                if [[ "$confirm" == "yes" ]]; then
+                    AUTH_MODE="no-auth"
+                    log_warn "Authentication disabled"
+                else
+                    echo "Cancelled. Please choose again."
+                fi
+                break
+                ;;
+            *)
+                echo "Invalid option. Please enter 1 or 2."
+                ;;
+        esac
+    done
+}
+
+# Prompt user for password with confirmation
+prompt_password() {
+    echo ""
+    echo "Please set a password for authentication."
+    echo "Username will be: ${AUTH_USERNAME}"
+    echo ""
+
+    while true; do
+        # Read password (hidden input)
+        read -s -p "Enter password: " password1 </dev/tty
+        echo ""
+
+        if [[ -z "$password1" ]]; then
+            echo -e "${RED}Password cannot be empty. Please try again.${NC}"
+            continue
+        fi
+
+        if [[ ${#password1} -lt 6 ]]; then
+            echo -e "${RED}Password must be at least 6 characters. Please try again.${NC}"
+            continue
+        fi
+
+        read -s -p "Confirm password: " password2 </dev/tty
+        echo ""
+
+        if [[ "$password1" != "$password2" ]]; then
+            echo -e "${RED}Passwords do not match. Please try again.${NC}"
+            continue
+        fi
+
+        AUTH_PASSWORD="$password1"
+        log_success "Password set successfully"
+        break
+    done
+}
+
+# Build authentication flags for webtmux command
+build_auth_flags() {
+    local flags=""
+    if [[ "$AUTH_MODE" == "no-auth" ]]; then
+        flags="--no-auth"
+    elif [[ "$AUTH_MODE" == "password" ]] && [[ -n "$AUTH_PASSWORD" ]]; then
+        flags="-c ${AUTH_USERNAME}:${AUTH_PASSWORD}"
+    fi
+    echo "$flags"
+}
+
+# Check if a port is available
+check_port_available() {
+    local port=$1
+    if command -v lsof &> /dev/null; then
+        ! lsof -i ":${port}" &> /dev/null
+    elif command -v ss &> /dev/null; then
+        ! ss -tuln | grep -q ":${port} "
+    elif command -v netstat &> /dev/null; then
+        ! netstat -tuln | grep -q ":${port} "
+    else
+        # If no tool available, assume port is available
+        return 0
+    fi
+}
+
+# Find next available port starting from given port
+find_available_port() {
+    local port=$1
+    local max_tries=100
+    local try=0
+
+    while [[ $try -lt $max_tries ]]; do
+        if check_port_available "$port"; then
+            echo "$port"
+            return 0
+        fi
+        ((port++))
+        ((try++))
+    done
+
+    echo "$1"  # Return original if no available port found
+    return 1
+}
+
+# Prompt user for port selection
+prompt_port() {
+    if [[ "$INTERACTIVE" != true ]] || ! is_interactive_terminal; then
+        return
+    fi
+
+    echo ""
+    echo -e "${BLUE}╔════════════════════════════════════════╗${NC}"
+    echo -e "${BLUE}║       Port Configuration               ║${NC}"
+    echo -e "${BLUE}╚════════════════════════════════════════╝${NC}"
+    echo ""
+    echo "Listen address: ${LISTEN_ADDR}"
+    echo "Default port: ${LISTEN_PORT}"
+    echo ""
+
+    # Check if default port is available
+    if ! check_port_available "$LISTEN_PORT"; then
+        local suggested_port=$(find_available_port "$LISTEN_PORT")
+        echo -e "${YELLOW}Port ${LISTEN_PORT} is already in use.${NC}"
+        echo -e "Suggested available port: ${GREEN}${suggested_port}${NC}"
+        LISTEN_PORT="$suggested_port"
+    else
+        echo -e "Port ${LISTEN_PORT} is ${GREEN}available${NC}."
+    fi
+
+    echo ""
+    while true; do
+        read -p "Enter port [${LISTEN_PORT}]: " input_port </dev/tty
+        input_port="${input_port:-$LISTEN_PORT}"
+
+        # Validate port number
+        if ! [[ "$input_port" =~ ^[0-9]+$ ]]; then
+            echo -e "${RED}Invalid port number. Please enter a number.${NC}"
+            continue
+        fi
+
+        if [[ "$input_port" -lt 1 || "$input_port" -gt 65535 ]]; then
+            echo -e "${RED}Port must be between 1 and 65535.${NC}"
+            continue
+        fi
+
+        if [[ "$input_port" -lt 1024 ]] && [[ $(id -u) -ne 0 ]]; then
+            echo -e "${YELLOW}Warning: Ports below 1024 require root privileges.${NC}"
+        fi
+
+        # Check if the chosen port is available
+        if ! check_port_available "$input_port"; then
+            echo -e "${RED}Port ${input_port} is already in use.${NC}"
+            local next_port=$(find_available_port "$input_port")
+            echo -e "Try port ${GREEN}${next_port}${NC}?"
+            continue
+        fi
+
+        LISTEN_PORT="$input_port"
+        log_success "Port set to ${LISTEN_PORT}"
+        break
+    done
 }
 
 # Detect OS
@@ -131,8 +373,17 @@ install_binary() {
 install_systemd_service() {
     local user=$(whoami)
     local service_file="/etc/systemd/system/${SERVICE_NAME}.service"
+    local auth_flags=$(build_auth_flags)
 
     log_info "Creating systemd service..."
+
+    # Build ExecStart command with all flags
+    local exec_cmd="${INSTALL_DIR}/${BINARY_NAME}"
+    exec_cmd="${exec_cmd} -a ${LISTEN_ADDR} -p ${LISTEN_PORT}"
+    if [[ -n "$auth_flags" ]]; then
+        exec_cmd="${exec_cmd} ${auth_flags}"
+    fi
+    exec_cmd="${exec_cmd} -w tmux new-session -A -s ${TMUX_SESSION}"
 
     sudo tee "${service_file}" > /dev/null << EOF
 [Unit]
@@ -142,7 +393,7 @@ After=network.target
 [Service]
 Type=simple
 User=${user}
-ExecStart=${INSTALL_DIR}/${BINARY_NAME} -w tmux new-session -A -s ${TMUX_SESSION}
+ExecStart=${exec_cmd}
 Restart=on-failure
 RestartSec=5
 
@@ -167,6 +418,15 @@ install_launchd_service() {
 
     mkdir -p "${HOME}/Library/LaunchAgents"
 
+    # Build auth arguments for plist
+    local auth_args=""
+    if [[ "$AUTH_MODE" == "no-auth" ]]; then
+        auth_args="        <string>--no-auth</string>"
+    elif [[ "$AUTH_MODE" == "password" ]] && [[ -n "$AUTH_PASSWORD" ]]; then
+        auth_args="        <string>-c</string>
+        <string>${AUTH_USERNAME}:${AUTH_PASSWORD}</string>"
+    fi
+
     cat > "${plist_file}" << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -177,7 +437,12 @@ install_launchd_service() {
     <key>ProgramArguments</key>
     <array>
         <string>${INSTALL_DIR}/${BINARY_NAME}</string>
-        <string>-w</string>
+        <string>-a</string>
+        <string>${LISTEN_ADDR}</string>
+        <string>-p</string>
+        <string>${LISTEN_PORT}</string>
+${auth_args:+$auth_args
+}        <string>-w</string>
         <string>tmux</string>
         <string>new-session</string>
         <string>-A</string>
@@ -256,6 +521,12 @@ main() {
         log_success "Verified: $(${INSTALL_DIR}/${BINARY_NAME} --version 2>&1 || echo 'webtmux installed')"
     fi
 
+    # Prompt for authentication settings (interactive mode only)
+    prompt_auth_choice
+
+    # Prompt for port configuration (interactive mode only)
+    prompt_port
+
     # Install service if requested
     if [[ "$INSTALL_SERVICE" == true ]]; then
         case "$os" in
@@ -280,10 +551,32 @@ main() {
     echo -e "${GREEN}  Installation complete!${NC}"
     echo -e "${GREEN}════════════════════════════════════════${NC}"
     echo ""
-    echo "Quick start:"
-    echo "  ${INSTALL_DIR}/${BINARY_NAME} -w tmux new-session -A -s main"
+
+    # Display configuration
+    echo "Configuration:"
+    echo "  Listen: ${LISTEN_ADDR}:${LISTEN_PORT}"
+
+    if [[ "$AUTH_MODE" == "no-auth" ]]; then
+        echo -e "  Auth: ${YELLOW}DISABLED (not recommended)${NC}"
+    elif [[ "$AUTH_MODE" == "password" ]] && [[ -n "$AUTH_PASSWORD" ]]; then
+        echo -e "  Auth: ${GREEN}ENABLED${NC} (${AUTH_USERNAME}:****)"
+    else
+        echo -e "  Auth: ${BLUE}Default (random password at runtime)${NC}"
+    fi
     echo ""
-    echo "Then open: http://localhost:8080"
+
+    # Build quick start command
+    local auth_flags=$(build_auth_flags)
+    local quick_cmd="${INSTALL_DIR}/${BINARY_NAME} -a ${LISTEN_ADDR} -p ${LISTEN_PORT}"
+    if [[ -n "$auth_flags" ]]; then
+        quick_cmd="${quick_cmd} ${auth_flags}"
+    fi
+    quick_cmd="${quick_cmd} -w tmux new-session -A -s main"
+
+    echo "Quick start:"
+    echo "  ${quick_cmd}"
+    echo ""
+    echo "Then open: http://localhost:${LISTEN_PORT}"
     echo ""
 }
 

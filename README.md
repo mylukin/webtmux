@@ -29,11 +29,8 @@ A web-based terminal with tmux-specific features. Access your tmux sessions from
 ### One-Line Install
 
 ```bash
-# Install and set up as a system service
+# Install and set up as a system service (will prompt for password)
 curl -fsSL https://raw.githubusercontent.com/mylukin/webtmux/main/install.sh | bash
-
-# Install with custom tmux session name
-curl -fsSL https://raw.githubusercontent.com/mylukin/webtmux/main/install.sh | bash -s -- --session dev
 ```
 
 ### Download from Releases
