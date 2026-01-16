@@ -20,6 +20,7 @@ class WebtmuxShortcuts extends LitElement {
     newLabel: { type: String },
     newKeys: { type: Array },
     selectedTemplate: { type: String },
+    collapsed: { type: Boolean },
   };
 
   static styles = css`
@@ -28,6 +29,15 @@ class WebtmuxShortcuts extends LitElement {
       background: #16213e;
       border-top: 1px solid #0f3460;
       padding: 6px 8px;
+      transition: all 250ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    :host(.collapsed) {
+      max-height: 0;
+      padding: 0;
+      overflow: hidden;
+      opacity: 0;
+      border: none;
     }
 
     .shortcuts-bar {
@@ -430,6 +440,23 @@ class WebtmuxShortcuts extends LitElement {
     this.newLabel = '';
     this.newKeys = [];
     this.selectedTemplate = '';
+    this.collapsed = localStorage.getItem('webtmux-mobile-collapsed') === 'true';
+
+    // Listen for collapse changes from mobile controls
+    window.addEventListener('collapse-change', (e) => {
+      this.collapsed = e.detail.collapsed;
+    });
+  }
+
+  updated(changedProperties) {
+    super.updated(changedProperties);
+    if (changedProperties.has('collapsed')) {
+      if (this.collapsed) {
+        this.classList.add('collapsed');
+      } else {
+        this.classList.remove('collapsed');
+      }
+    }
   }
 
   render() {

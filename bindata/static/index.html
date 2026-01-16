@@ -5,7 +5,17 @@
   <link rel="manifest" href="manifest.json" crossorigin="use-credentials">
   <link rel="icon" href="favicon.ico">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+
+  <!-- iOS PWA Meta Tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="WebTmux">
+  <link rel="apple-touch-icon" href="icon_192.png">
+
+  <!-- Android/Chrome Theme -->
+  <meta name="theme-color" content="#1a1a2e">
+  <meta name="mobile-web-app-capable" content="yes">
 
   <!-- Tailwind CSS -->
   <link rel="stylesheet" href="css/tailwind.css">
@@ -14,22 +24,46 @@
   <link rel="stylesheet" href="css/xterm.css">
 
   <style>
+    :root {
+      /* Default mobile controls height (expanded with shortcuts) */
+      --mobile-controls-height: 190px;
+      /* Collapsed height */
+      --mobile-controls-collapsed-height: 80px;
+      /* Keyboard height (set dynamically by JavaScript) */
+      --keyboard-height: 0px;
+    }
     html, body {
       margin: 0;
       padding: 0;
       height: 100%;
+      height: 100dvh; /* Dynamic viewport height - adjusts with keyboard */
       overflow: hidden;
       background: #1a1a2e;
+      /* Safe area for notched devices in standalone mode */
+      padding-top: env(safe-area-inset-top);
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
     }
     #app {
       display: flex;
       height: 100%;
       width: 100%;
+      transition: height 150ms ease-out;
     }
     /* On mobile, reserve space for mobile controls at bottom */
     @media (max-width: 1023px) {
       #app {
-        height: calc(100% - 100px); /* Reserve space for mobile controls */
+        height: calc(100% - var(--mobile-controls-height));
+      }
+      #app.controls-collapsed {
+        height: calc(100% - var(--mobile-controls-collapsed-height));
+      }
+      /* When keyboard is open, adjust layout */
+      #app.keyboard-open {
+        height: calc(100% - var(--mobile-controls-height));
+      }
+      #app.keyboard-open.controls-collapsed {
+        height: calc(100% - var(--mobile-controls-collapsed-height));
       }
     }
     #terminal-container {
@@ -67,8 +101,8 @@
   <div id="app">
     <div id="terminal-container">
       <div id="terminal"></div>
-      <!-- Keyboard shortcuts bar (both mobile and desktop) -->
-      <webtmux-shortcuts></webtmux-shortcuts>
+      <!-- Keyboard shortcuts bar (desktop only - mobile uses mobile-controls) -->
+      <webtmux-shortcuts class="hidden lg:block"></webtmux-shortcuts>
     </div>
     <webtmux-sidebar id="sidebar" class="hidden lg:block"></webtmux-sidebar>
   </div>
@@ -79,5 +113,95 @@
   <script src="./auth_token.js"></script>
   <script src="./config.js"></script>
   <script type="module" src="./js/webtmux.js"></script>
+
+  <!-- Handle mobile controls collapse state and keyboard detection -->
+  <script>
+    (function() {
+      const app = document.getElementById('app');
+      const root = document.documentElement;
+      let lastKeyboardHeight = 0;
+
+      // Initialize from localStorage
+      if (localStorage.getItem('webtmux-mobile-collapsed') === 'true') {
+        app.classList.add('controls-collapsed');
+      }
+
+      // Listen for collapse changes
+      window.addEventListener('collapse-change', function(e) {
+        if (e.detail.collapsed) {
+          app.classList.add('controls-collapsed');
+        } else {
+          app.classList.remove('controls-collapsed');
+        }
+
+        // Trigger terminal resize after transition
+        setTimeout(function() {
+          if (window.webtmux && window.webtmux.fit) {
+            window.webtmux.fit();
+          }
+        }, 300);
+      });
+
+      // Keyboard detection using visualViewport API
+      function handleViewportResize() {
+        if (!window.visualViewport) return;
+
+        const viewportHeight = window.visualViewport.height;
+        const windowHeight = window.innerHeight;
+        const keyboardHeight = windowHeight - viewportHeight;
+
+        // Only consider it a keyboard if height difference is significant (> 100px)
+        const isKeyboardOpen = keyboardHeight > 100;
+
+        if (isKeyboardOpen) {
+          // Keyboard is open - move mobile controls up
+          root.style.setProperty('--keyboard-height', keyboardHeight + 'px');
+          app.classList.add('keyboard-open');
+
+          // Update mobile controls position
+          const mobileControls = document.querySelector('webtmux-mobile-controls');
+          if (mobileControls) {
+            mobileControls.style.transform = 'translateY(-' + keyboardHeight + 'px)';
+          }
+        } else {
+          // Keyboard is closed - reset positions
+          root.style.setProperty('--keyboard-height', '0px');
+          app.classList.remove('keyboard-open');
+
+          const mobileControls = document.querySelector('webtmux-mobile-controls');
+          if (mobileControls) {
+            mobileControls.style.transform = '';
+          }
+        }
+
+        // Only trigger resize if keyboard state changed significantly
+        if (Math.abs(keyboardHeight - lastKeyboardHeight) > 50) {
+          lastKeyboardHeight = keyboardHeight;
+          setTimeout(function() {
+            if (window.webtmux && window.webtmux.fit) {
+              window.webtmux.fit();
+            }
+          }, 100);
+        }
+      }
+
+      // Set up visualViewport listeners
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', handleViewportResize);
+        window.visualViewport.addEventListener('scroll', handleViewportResize);
+      }
+
+      // Fallback for browsers without visualViewport
+      window.addEventListener('resize', function() {
+        if (!window.visualViewport) {
+          setTimeout(function() {
+            if (window.webtmux && window.webtmux.fit) {
+              window.webtmux.fit();
+            }
+          }, 300);
+        }
+      });
+    })();
+  </script>
 </body>
 </html>
