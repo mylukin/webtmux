@@ -29,7 +29,8 @@ class WebtmuxShortcuts extends LitElement {
       background: #16213e;
       border-top: 1px solid #0f3460;
       padding: 6px 8px;
-      transition: all 250ms cubic-bezier(0.4, 0, 0.2, 1);
+      transition: all 250ms cubic-bezier(0.4, 0, 0.2, 1),
+                  bottom 150ms ease-out;
     }
 
     :host(.collapsed) {
@@ -38,6 +39,16 @@ class WebtmuxShortcuts extends LitElement {
       overflow: hidden;
       opacity: 0;
       border: none;
+    }
+
+    /* When keyboard is open, switch to fixed positioning */
+    :host(.keyboard-open) {
+      position: fixed;
+      bottom: var(--keyboard-offset, 0px);
+      left: 0;
+      right: 0;
+      z-index: 1000;
+      padding-bottom: calc(6px + env(safe-area-inset-bottom));
     }
 
     .shortcuts-bar {

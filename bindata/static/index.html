@@ -147,8 +147,9 @@
         if (!window.visualViewport) return;
 
         const viewportHeight = window.visualViewport.height;
+        const viewportOffsetTop = window.visualViewport.offsetTop || 0;
         const windowHeight = window.innerHeight;
-        const keyboardHeight = windowHeight - viewportHeight;
+        const keyboardHeight = Math.max(0, windowHeight - (viewportHeight + viewportOffsetTop));
 
         // Only consider it a keyboard if height difference is significant (> 100px)
         const isKeyboardOpen = keyboardHeight > 100;
@@ -156,18 +157,33 @@
         // Small buffer for iOS autofill toolbar
         const autofillBuffer = 0;
 
+        // Determine which component is visible based on screen width
+        // mobile-controls: shown at < 1024px (lg breakpoint)
+        // shortcuts: shown at 1024-1279px (lg to xl breakpoint)
+        const screenWidth = window.innerWidth;
+        const isMobileControlsVisible = screenWidth < 1024;
+        const isShortcutsVisible = screenWidth >= 1024 && screenWidth < 1280;
+
         if (isKeyboardOpen) {
-          // Keyboard is open - let 100dvh handle viewport, just trigger terminal resize
+          // Keyboard is open
           root.style.setProperty('--keyboard-height', keyboardHeight + 'px');
           app.classList.add('keyboard-open');
 
-          // On iOS, 100dvh already adjusts for keyboard, so we don't need to move controls
-          // Only apply offset on Android or browsers that don't shrink viewport properly
-          const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-          if (!isIOS) {
+          // Handle mobile-controls (shown on screens < 1024px)
+          if (isMobileControlsVisible) {
             const mobileControls = document.querySelector('webtmux-mobile-controls');
             if (mobileControls) {
               mobileControls.style.setProperty('--keyboard-offset', (keyboardHeight + autofillBuffer) + 'px');
+            }
+          }
+
+          // Handle shortcuts component (shown on tablet 1024-1279px)
+          // This needs keyboard handling because it's normally inline, not fixed
+          if (isShortcutsVisible) {
+            const shortcuts = document.querySelector('webtmux-shortcuts');
+            if (shortcuts) {
+              shortcuts.classList.add('keyboard-open');
+              shortcuts.style.setProperty('--keyboard-offset', (keyboardHeight + autofillBuffer) + 'px');
             }
           }
         } else {
@@ -178,6 +194,12 @@
           const mobileControls = document.querySelector('webtmux-mobile-controls');
           if (mobileControls) {
             mobileControls.style.setProperty('--keyboard-offset', '0px');
+          }
+
+          const shortcuts = document.querySelector('webtmux-shortcuts');
+          if (shortcuts) {
+            shortcuts.classList.remove('keyboard-open');
+            shortcuts.style.setProperty('--keyboard-offset', '0px');
           }
         }
 
