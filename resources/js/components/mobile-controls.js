@@ -455,7 +455,7 @@ class WebtmuxMobileControls extends LitElement {
     this.showSessionSelector = false;
     this.layout = null;
     this.activePane = '';
-    this.collapsed = localStorage.getItem('webtmux-mobile-collapsed') === 'true';
+    this.collapsed = localStorage.getItem('webtmux-mobile-collapsed') !== 'false';
     this.announcement = '';
     this.shortcuts = getShortcuts();
 
