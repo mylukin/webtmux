@@ -48,5 +48,11 @@ func (options *Options) Validate() error {
 	if options.EnableWebTransport && !options.EnableTLS {
 		return errors.New("WebTransport requires TLS to be enabled")
 	}
+	if options.PermitArguments && !options.EnableBasicAuth {
+		return errors.New("permit-arguments requires authentication to be enabled")
+	}
+	if options.PassHeaders && !options.EnableBasicAuth {
+		return errors.New("pass-headers requires authentication to be enabled")
+	}
 	return nil
 }

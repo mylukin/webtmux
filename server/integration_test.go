@@ -986,13 +986,14 @@ func TestIntegrationWebSocketAuthentication(t *testing.T) {
 	credential := "testuser:testpass"
 
 	options := &Options{
-		Address:       "127.0.0.1",
-		Port:          "0",
-		Path:          "/",
-		TitleFormat:   "Test Terminal",
-		PermitWrite:   true,
-		MaxConnection: 10,
-		Credential:    credential,
+		Address:         "127.0.0.1",
+		Port:            "0",
+		Path:            "/",
+		TitleFormat:     "Test Terminal",
+		PermitWrite:     true,
+		MaxConnection:   10,
+		Credential:      credential,
+		EnableBasicAuth: true,
 	}
 
 	server, err := New(factory, options)
@@ -1013,6 +1014,7 @@ func TestIntegrationWebSocketAuthentication(t *testing.T) {
 	dialer := websocket.Dialer{
 		Subprotocols: []string{"webtty"},
 	}
+	authToken := server.authTokens.issue("127.0.0.1")
 
 	t.Run("valid auth token", func(t *testing.T) {
 		conn, _, err := dialer.Dial(wsURL, nil)
@@ -1023,7 +1025,7 @@ func TestIntegrationWebSocketAuthentication(t *testing.T) {
 
 		// Send init message with valid token
 		initMsg := InitMessage{
-			AuthToken: credential,
+			AuthToken: authToken,
 		}
 		err = conn.WriteJSON(initMsg)
 		if err != nil {
@@ -1078,6 +1080,7 @@ func TestIntegrationProcessWSConnPaths(t *testing.T) {
 		PermitWrite:     true,
 		MaxConnection:   10,
 		PermitArguments: true,
+		EnableBasicAuth: true,
 		TitleVariables: map[string]interface{}{
 			"hostname": "test-host",
 		},
@@ -1101,6 +1104,7 @@ func TestIntegrationProcessWSConnPaths(t *testing.T) {
 	dialer := websocket.Dialer{
 		Subprotocols: []string{"webtty"},
 	}
+	authToken := server.authTokens.issue("127.0.0.1")
 
 	t.Run("with arguments", func(t *testing.T) {
 		conn, _, err := dialer.Dial(wsURL, nil)
@@ -1111,7 +1115,7 @@ func TestIntegrationProcessWSConnPaths(t *testing.T) {
 
 		// Send init message with arguments
 		initMsg := InitMessage{
-			AuthToken: "",
+			AuthToken: authToken,
 			Arguments: "?cols=80&rows=24",
 		}
 		err = conn.WriteJSON(initMsg)

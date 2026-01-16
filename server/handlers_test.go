@@ -4,9 +4,11 @@ import (
 	"html/template"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 	texttemplate "text/template"
+	"time"
 )
 
 func TestHandleConfig(t *testing.T) {
@@ -69,8 +71,10 @@ func TestHandleConfigWebTransportDisabled(t *testing.T) {
 func TestHandleAuthToken(t *testing.T) {
 	server := &Server{
 		options: &Options{
-			Credential: "admin:secret",
+			Credential:      "admin:secret",
+			EnableBasicAuth: true,
 		},
+		authTokens: newAuthTokenStore(time.Minute),
 	}
 
 	req := httptest.NewRequest("GET", "/auth_token.js", nil)
@@ -91,8 +95,11 @@ func TestHandleAuthToken(t *testing.T) {
 	if !strings.Contains(body, "gotty_auth_token") {
 		t.Error("Response should contain gotty_auth_token")
 	}
-	if !strings.Contains(body, "admin:secret") {
-		t.Error("Response should contain the credential")
+	if strings.Contains(body, "admin:secret") {
+		t.Error("Response should not contain the credential")
+	}
+	if !regexp.MustCompile(`gotty_auth_token\s*=\s*"[^"]+"`).MatchString(body) {
+		t.Error("Response should contain a non-empty auth token")
 	}
 }
 

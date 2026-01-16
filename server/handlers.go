@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -74,10 +75,11 @@ func (server *Server) generateHandleWS(ctx context.Context, cancel context.Cance
 		}
 		defer conn.Close()
 
+		clientIP := clientIPFromRequest(r)
 		if server.options.PassHeaders {
-			err = server.processWSConn(ctx, conn, r.Header)
+			err = server.processWSConn(ctx, conn, r.Header, clientIP)
 		} else {
-			err = server.processWSConn(ctx, conn, nil)
+			err = server.processWSConn(ctx, conn, nil, clientIP)
 		}
 
 		switch err {
@@ -167,7 +169,7 @@ func (server *Server) generateHandleWT(ctx context.Context, cancel context.Cance
 	}
 }
 
-func (server *Server) processWSConn(ctx context.Context, conn *websocket.Conn, headers map[string][]string) error {
+func (server *Server) processWSConn(ctx context.Context, conn *websocket.Conn, headers map[string][]string, clientIP string) error {
 	typ, initLine, err := conn.ReadMessage()
 	if err != nil {
 		return errors.Wrapf(err, "failed to authenticate websocket connection")
@@ -181,7 +183,7 @@ func (server *Server) processWSConn(ctx context.Context, conn *websocket.Conn, h
 	if err != nil {
 		return errors.Wrapf(err, "failed to authenticate websocket connection")
 	}
-	if init.AuthToken != server.options.Credential {
+	if !server.validateAuthToken(init.AuthToken, clientIP) {
 		return errors.New("failed to authenticate websocket connection")
 	}
 
@@ -267,7 +269,7 @@ func (server *Server) processTransportConn(ctx context.Context, transport Transp
 	if err != nil {
 		return errors.Wrapf(err, "failed to parse init message")
 	}
-	if init.AuthToken != server.options.Credential {
+	if !server.validateAuthToken(init.AuthToken, ipFromAddr(transport.RemoteAddr())) {
 		return errors.New("authentication failed")
 	}
 
@@ -434,8 +436,10 @@ func (server *Server) indexVariables(r *http.Request) (map[string]interface{}, e
 
 func (server *Server) handleAuthToken(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/javascript")
-	// @TODO hashing?
-	w.Write([]byte("var gotty_auth_token = '" + server.options.Credential + "';"))
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
+	authToken := server.issueAuthToken(r)
+	w.Write([]byte("var gotty_auth_token = " + strconv.Quote(authToken) + ";"))
 }
 
 func (server *Server) handleConfig(w http.ResponseWriter, r *http.Request) {

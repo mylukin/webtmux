@@ -199,8 +199,9 @@ func TestProcessTransportConnInvalidJSON(t *testing.T) {
 func TestProcessTransportConnAuthFailure(t *testing.T) {
 	factory := newConnTestFactory()
 	options := &Options{
-		TitleFormat: "Test",
-		Credential:  "correct:password",
+		TitleFormat:     "Test",
+		Credential:      "correct:password",
+		EnableBasicAuth: true,
 	}
 
 	server, err := New(factory, options)
@@ -209,6 +210,7 @@ func TestProcessTransportConnAuthFailure(t *testing.T) {
 	}
 
 	transport := newConnTestTransport()
+	server.authTokens.issue("127.0.0.1")
 	initMsg := InitMessage{AuthToken: "wrong:password"}
 	data, _ := json.Marshal(initMsg)
 	transport.SetReadData(data)
@@ -258,6 +260,7 @@ func TestProcessTransportConnWithArguments(t *testing.T) {
 	options := &Options{
 		TitleFormat:     "Test",
 		PermitArguments: true,
+		EnableBasicAuth: true,
 	}
 
 	server, err := New(factory, options)
@@ -266,8 +269,9 @@ func TestProcessTransportConnWithArguments(t *testing.T) {
 	}
 
 	transport := newConnTestTransport()
+	authToken := server.authTokens.issue("127.0.0.1")
 	initMsg := InitMessage{
-		AuthToken: "",
+		AuthToken: authToken,
 		Arguments: "?cols=80&rows=24",
 	}
 	data, _ := json.Marshal(initMsg)
@@ -288,6 +292,7 @@ func TestProcessTransportConnInvalidArguments(t *testing.T) {
 	options := &Options{
 		TitleFormat:     "Test",
 		PermitArguments: true,
+		EnableBasicAuth: true,
 	}
 
 	server, err := New(factory, options)
@@ -296,8 +301,9 @@ func TestProcessTransportConnInvalidArguments(t *testing.T) {
 	}
 
 	transport := newConnTestTransport()
+	authToken := server.authTokens.issue("127.0.0.1")
 	initMsg := InitMessage{
-		AuthToken: "",
+		AuthToken: authToken,
 		Arguments: "://invalid-url", // Invalid URL
 	}
 	data, _ := json.Marshal(initMsg)

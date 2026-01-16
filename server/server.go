@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -42,6 +43,8 @@ type Server struct {
 
 	// WebTransport support
 	wtServer *WebTransportServer
+
+	authTokens *authTokenStore
 }
 
 // New creates a new instance of Server.
@@ -87,9 +90,33 @@ func New(factory Factory, options *Options) (*Server, error) {
 			return matcher.MatchString(r.Header.Get("Origin"))
 		}
 	} else {
-		// Default: allow all origins (auth provides protection)
+		// Default: only allow same-origin requests.
 		originChekcer = func(r *http.Request) bool {
-			return true
+			origin := r.Header.Get("Origin")
+			if origin == "" {
+				return true
+			}
+			originURL, err := url.Parse(origin)
+			if err != nil {
+				return false
+			}
+
+			originHost := originURL.Hostname()
+			originPort := originURL.Port()
+			reqHost := r.Host
+			reqPort := ""
+			if host, port, err := net.SplitHostPort(reqHost); err == nil {
+				reqHost = host
+				reqPort = port
+			}
+
+			if !strings.EqualFold(originHost, reqHost) {
+				return false
+			}
+			if originPort == "" || reqPort == "" {
+				return true
+			}
+			return originPort == reqPort
 		}
 	}
 
@@ -106,6 +133,7 @@ func New(factory Factory, options *Options) (*Server, error) {
 		indexTemplate:    indexTemplate,
 		titleTemplate:    titleTemplate,
 		manifestTemplate: manifestTemplate,
+		authTokens:       newAuthTokenStore(authTokenTTL),
 	}
 
 	// Detect tmux session from command
