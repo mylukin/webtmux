@@ -513,8 +513,14 @@ class WebtmuxMobileControls extends LitElement {
       const isLandscape = e.matches;
 
       if (isLandscape) {
-        // Landscape mode - auto-expand if currently collapsed
-        if (this.collapsed) {
+        // Use viewport height to distinguish phone vs tablet in landscape
+        // iPhone landscape: ~375-428px height (phone-like)
+        // iPad mini landscape: ~768px height (tablet-like)
+        const viewportHeight = window.innerHeight;
+        const isPhoneLandscape = viewportHeight < 500;
+
+        // Only auto-expand on tablet landscape, not phone landscape
+        if (!isPhoneLandscape && this.collapsed) {
           this._autoExpandedForLandscape = true;
           this.collapsed = false;
           // Don't save to localStorage - this is temporary
