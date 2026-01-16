@@ -494,10 +494,56 @@ class WebtmuxMobileControls extends LitElement {
     this._touchStartTime = 0;
     this._isDragging = false;
 
+    // Track if we auto-expanded due to landscape orientation
+    this._autoExpandedForLandscape = false;
+
     window.addEventListener('tmux-layout-update', (e) => {
       this.layout = e.detail;
       this.activePane = e.detail.activePaneId;
     });
+
+    // Set up orientation listener for auto-expand in landscape
+    this._setupOrientationListener();
+  }
+
+  _setupOrientationListener() {
+    const landscapeQuery = window.matchMedia("(orientation: landscape)");
+
+    const handleOrientationChange = (e) => {
+      const isLandscape = e.matches;
+
+      if (isLandscape) {
+        // Landscape mode - auto-expand if currently collapsed
+        if (this.collapsed) {
+          this._autoExpandedForLandscape = true;
+          this.collapsed = false;
+          // Don't save to localStorage - this is temporary
+          // Dispatch event for layout adjustment
+          this.dispatchEvent(new CustomEvent('collapse-change', {
+            bubbles: true,
+            composed: true,
+            detail: { collapsed: false }
+          }));
+        }
+      } else {
+        // Portrait mode - restore user's preference if we auto-expanded
+        if (this._autoExpandedForLandscape) {
+          this._autoExpandedForLandscape = false;
+          const userPreference = localStorage.getItem('webtmux-mobile-collapsed') !== 'false';
+          this.collapsed = userPreference;
+          // Dispatch event for layout adjustment
+          this.dispatchEvent(new CustomEvent('collapse-change', {
+            bubbles: true,
+            composed: true,
+            detail: { collapsed: userPreference }
+          }));
+        }
+      }
+    };
+
+    landscapeQuery.addEventListener("change", handleOrientationChange);
+    // Check initial state on load
+    handleOrientationChange(landscapeQuery);
   }
 
   updated(changedProperties) {
@@ -562,6 +608,9 @@ class WebtmuxMobileControls extends LitElement {
   setCollapsed(value) {
     this.collapsed = value;
     localStorage.setItem('webtmux-mobile-collapsed', String(value));
+
+    // User manually changed state, so clear the auto-expand flag
+    this._autoExpandedForLandscape = false;
 
     // Announce state change for screen readers
     this.announcement = value
