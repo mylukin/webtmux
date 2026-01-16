@@ -17,7 +17,7 @@ class WebtmuxMobileControls extends LitElement {
     :host {
       display: block;
       position: fixed;
-      bottom: 0;
+      bottom: var(--keyboard-offset, 0px);
       left: 0;
       right: 0;
       background: #16213e;
@@ -26,8 +26,8 @@ class WebtmuxMobileControls extends LitElement {
       padding-bottom: calc(6px + env(safe-area-inset-bottom));
       z-index: 1000;
       transition: all 250ms cubic-bezier(0.4, 0, 0.2, 1),
-                  transform 150ms ease-out;
-      will-change: transform;
+                  bottom 150ms ease-out;
+      will-change: bottom;
     }
 
     /* Drag handle for collapse/expand - modern drawer style */

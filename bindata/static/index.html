@@ -153,15 +153,22 @@
         // Only consider it a keyboard if height difference is significant (> 100px)
         const isKeyboardOpen = keyboardHeight > 100;
 
+        // Small buffer for iOS autofill toolbar
+        const autofillBuffer = 0;
+
         if (isKeyboardOpen) {
-          // Keyboard is open - move mobile controls up
+          // Keyboard is open - let 100dvh handle viewport, just trigger terminal resize
           root.style.setProperty('--keyboard-height', keyboardHeight + 'px');
           app.classList.add('keyboard-open');
 
-          // Update mobile controls position
-          const mobileControls = document.querySelector('webtmux-mobile-controls');
-          if (mobileControls) {
-            mobileControls.style.transform = 'translateY(-' + keyboardHeight + 'px)';
+          // On iOS, 100dvh already adjusts for keyboard, so we don't need to move controls
+          // Only apply offset on Android or browsers that don't shrink viewport properly
+          const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+          if (!isIOS) {
+            const mobileControls = document.querySelector('webtmux-mobile-controls');
+            if (mobileControls) {
+              mobileControls.style.setProperty('--keyboard-offset', (keyboardHeight + autofillBuffer) + 'px');
+            }
           }
         } else {
           // Keyboard is closed - reset positions
@@ -170,7 +177,7 @@
 
           const mobileControls = document.querySelector('webtmux-mobile-controls');
           if (mobileControls) {
-            mobileControls.style.transform = '';
+            mobileControls.style.setProperty('--keyboard-offset', '0px');
           }
         }
 
