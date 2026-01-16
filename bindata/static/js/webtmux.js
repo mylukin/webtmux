@@ -75,6 +75,18 @@ class WebTmux {
     const container = document.getElementById('terminal');
     this.terminal.open(container);
 
+    // Disable autocomplete on xterm's hidden textarea to prevent browser suggestions
+    const textarea = this.terminal.textarea;
+    if (textarea) {
+      textarea.setAttribute('autocomplete', 'off');
+      textarea.setAttribute('autocapitalize', 'off');
+      textarea.setAttribute('autocorrect', 'off');
+      textarea.setAttribute('spellcheck', 'false');
+      // Additional attributes for iOS Safari
+      textarea.setAttribute('data-form-type', 'other');
+      textarea.setAttribute('data-lpignore', 'true');
+    }
+
     // Try to load WebGL addon
     try {
       const webglAddon = new WebglAddon();
