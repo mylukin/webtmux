@@ -8,29 +8,35 @@ import (
 )
 
 func TestNewFactory(t *testing.T) {
-	factory, err := NewFactory("/bin/false", []string{}, &Options{CloseSignal: 123, CloseTimeout: 321})
+	// Use SIGTERM (15) as close signal and 1 second timeout for faster test
+	factory, err := NewFactory("/bin/sh", []string{}, &Options{CloseSignal: 15, CloseTimeout: 1})
 	if err != nil {
 		t.Errorf("NewFactory() returned error")
 		return
 	}
-	if factory.command != "/bin/false" {
-		t.Errorf("factory.command = %v, expected %v", factory.command, "/bin/false")
+	if factory.command != "/bin/sh" {
+		t.Errorf("factory.command = %v, expected %v", factory.command, "/bin/sh")
 	}
 	if !reflect.DeepEqual(factory.argv, []string{}) {
 		t.Errorf("factory.argv = %v, expected %v", factory.argv, []string{})
 	}
-	if !reflect.DeepEqual(factory.options, &Options{CloseSignal: 123, CloseTimeout: 321}) {
-		t.Errorf("factory.options = %v, expected %v", factory.options, &Options{})
+	if !reflect.DeepEqual(factory.options, &Options{CloseSignal: 15, CloseTimeout: 1}) {
+		t.Errorf("factory.options = %v, expected %v", factory.options, &Options{CloseSignal: 15, CloseTimeout: 1})
 	}
 
-	slave, _ := factory.New(nil, nil)
+	slave, err := factory.New(nil, nil)
+	if err != nil {
+		t.Errorf("factory.New() returned error: %v", err)
+		return
+	}
 	lcmd := slave.(*LocalCommand)
-	if lcmd.closeSignal != 123 {
-		t.Errorf("lcmd.closeSignal = %v, expected %v", lcmd.closeSignal, 123)
+	if lcmd.closeSignal != 15 {
+		t.Errorf("lcmd.closeSignal = %v, expected %v", lcmd.closeSignal, 15)
 	}
-	if lcmd.closeTimeout != time.Second*321 {
-		t.Errorf("lcmd.closeTimeout = %v, expected %v", lcmd.closeTimeout, time.Second*321)
+	if lcmd.closeTimeout != time.Second*1 {
+		t.Errorf("lcmd.closeTimeout = %v, expected %v", lcmd.closeTimeout, time.Second*1)
 	}
+	slave.Close()
 }
 
 func TestFactoryNew(t *testing.T) {
