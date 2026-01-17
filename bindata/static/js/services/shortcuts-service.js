@@ -12,6 +12,11 @@ const DEFAULT_SHORTCUTS = [
   { id: 'pipe', label: '|', keys: [0x7c], enabled: true, order: 5, builtin: true },
   { id: 'slash', label: '/', keys: [0x2f], enabled: true, order: 6, builtin: true },
   { id: 'backslash', label: '\\', keys: [0x5c], enabled: true, order: 7, builtin: true },
+  // Arrow keys
+  { id: 'arrow-up', label: '\u2191', keys: [0x1b, 0x5b, 0x41], enabled: true, order: 8, builtin: true },
+  { id: 'arrow-down', label: '\u2193', keys: [0x1b, 0x5b, 0x42], enabled: true, order: 9, builtin: true },
+  { id: 'arrow-left', label: '\u2190', keys: [0x1b, 0x5b, 0x44], enabled: true, order: 10, builtin: true },
+  { id: 'arrow-right', label: '\u2192', keys: [0x1b, 0x5b, 0x43], enabled: true, order: 11, builtin: true },
 ];
 
 // Common key templates for the "Add Shortcut" UI
@@ -27,6 +32,10 @@ export const KEY_TEMPLATES = [
   { label: 'Arrow Down', keys: [0x1b, 0x5b, 0x42] },
   { label: 'Arrow Right', keys: [0x1b, 0x5b, 0x43] },
   { label: 'Arrow Left', keys: [0x1b, 0x5b, 0x44] },
+  { label: 'Shift+Up', keys: [0x1b, 0x5b, 0x31, 0x3b, 0x32, 0x41] },
+  { label: 'Shift+Down', keys: [0x1b, 0x5b, 0x31, 0x3b, 0x32, 0x42] },
+  { label: 'Shift+Left', keys: [0x1b, 0x5b, 0x31, 0x3b, 0x32, 0x44] },
+  { label: 'Shift+Right', keys: [0x1b, 0x5b, 0x31, 0x3b, 0x32, 0x43] },
   { label: 'Ctrl+A', keys: [0x01] },
   { label: 'Ctrl+E', keys: [0x05] },
   { label: 'Ctrl+K', keys: [0x0b] },
