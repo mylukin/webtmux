@@ -4,19 +4,18 @@ const STORAGE_KEY = 'webtmux-shortcuts';
 
 // Default shortcuts configuration
 const DEFAULT_SHORTCUTS = [
-  { id: 'esc', label: 'ESC', keys: [0x1b], enabled: true, order: 0, builtin: true },
-  { id: 'tab', label: 'Tab', keys: [0x09], enabled: true, order: 1, builtin: true },
-  { id: 'shift-tab', label: '\u21e7Tab', keys: [0x1b, 0x5b, 0x5a], enabled: true, order: 2, builtin: true },
-  { id: 'ctrl-c', label: '^C', keys: [0x03], enabled: true, order: 3, builtin: true },
-  { id: 'ctrl-d', label: '^D', keys: [0x04], enabled: true, order: 4, builtin: true },
-  { id: 'pipe', label: '|', keys: [0x7c], enabled: true, order: 5, builtin: true },
-  { id: 'slash', label: '/', keys: [0x2f], enabled: true, order: 6, builtin: true },
-  { id: 'backslash', label: '\\', keys: [0x5c], enabled: true, order: 7, builtin: true },
-  // Arrow keys
-  { id: 'arrow-up', label: '\u2191', keys: [0x1b, 0x5b, 0x41], enabled: true, order: 8, builtin: true },
-  { id: 'arrow-down', label: '\u2193', keys: [0x1b, 0x5b, 0x42], enabled: true, order: 9, builtin: true },
-  { id: 'arrow-left', label: '\u2190', keys: [0x1b, 0x5b, 0x44], enabled: true, order: 10, builtin: true },
-  { id: 'arrow-right', label: '\u2192', keys: [0x1b, 0x5b, 0x43], enabled: true, order: 11, builtin: true },
+  { id: 'esc', label: 'ESC', keys: [0x1b], enabled: true, order: 0, builtin: true, showInCollapsed: true },
+  { id: 'tab', label: 'Tab', keys: [0x09], enabled: true, order: 1, builtin: true, showInCollapsed: true },
+  { id: 'shift-tab', label: '\u21e7Tab', keys: [0x1b, 0x5b, 0x5a], enabled: true, order: 2, builtin: true, showInCollapsed: true },
+  { id: 'ctrl-c', label: '^C', keys: [0x03], enabled: true, order: 3, builtin: true, showInCollapsed: true },
+  { id: 'ctrl-d', label: '^D', keys: [0x04], enabled: true, order: 4, builtin: true, showInCollapsed: false },
+  { id: 'pipe', label: '|', keys: [0x7c], enabled: true, order: 5, builtin: true, showInCollapsed: true },
+  { id: 'slash', label: '/', keys: [0x2f], enabled: true, order: 6, builtin: true, showInCollapsed: true },
+  { id: 'backslash', label: '\\', keys: [0x5c], enabled: true, order: 7, builtin: true, showInCollapsed: false },
+  { id: 'arrow-up', label: '\u2191', keys: [0x1b, 0x5b, 0x41], enabled: true, order: 8, builtin: true, showInCollapsed: false },
+  { id: 'arrow-down', label: '\u2193', keys: [0x1b, 0x5b, 0x42], enabled: true, order: 9, builtin: true, showInCollapsed: false },
+  { id: 'arrow-left', label: '\u2190', keys: [0x1b, 0x5b, 0x44], enabled: true, order: 10, builtin: true, showInCollapsed: false },
+  { id: 'arrow-right', label: '\u2192', keys: [0x1b, 0x5b, 0x43], enabled: true, order: 11, builtin: true, showInCollapsed: false },
 ];
 
 // Common key templates for the "Add Shortcut" UI
@@ -73,6 +72,7 @@ export function getShortcuts() {
 export function saveShortcuts(shortcuts) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(shortcuts));
+    window.dispatchEvent(new CustomEvent('shortcuts-updated', { detail: { shortcuts } }));
     return true;
   } catch (e) {
     console.warn('Failed to save shortcuts to localStorage:', e);
@@ -147,6 +147,18 @@ export function toggleShortcut(shortcuts, id) {
   const shortcut = shortcuts.find(s => s.id === id);
   if (!shortcut) return shortcuts;
   return updateShortcut(shortcuts, id, { enabled: !shortcut.enabled });
+}
+
+export function toggleShowInCollapsed(shortcuts, id) {
+  const shortcut = shortcuts.find(s => s.id === id);
+  if (!shortcut) return shortcuts;
+  return updateShortcut(shortcuts, id, { showInCollapsed: !shortcut.showInCollapsed });
+}
+
+export function getCollapsedShortcuts(shortcuts) {
+  return shortcuts
+    .filter(s => s.enabled && s.showInCollapsed)
+    .sort((a, b) => a.order - b.order);
 }
 
 /** Send shortcut keys to terminal. Used by mobile-controls and shortcuts components. */

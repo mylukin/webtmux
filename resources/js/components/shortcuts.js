@@ -7,6 +7,7 @@ import {
   removeShortcut,
   moveShortcut,
   toggleShortcut,
+  toggleShowInCollapsed,
   updateShortcut,
   sendShortcut,
   KEY_TEMPLATES,
@@ -296,6 +297,22 @@ class WebtmuxShortcuts extends LitElement {
       background: #e94560;
     }
 
+    .action-btn.collapsed-toggle {
+      font-size: 9px;
+      font-weight: bold;
+      opacity: 0.4;
+    }
+
+    .action-btn.collapsed-toggle.active {
+      background: #4a9eff;
+      color: #fff;
+      opacity: 1;
+    }
+
+    .action-btn.collapsed-toggle:hover {
+      opacity: 1;
+    }
+
     .modal-actions {
       display: flex;
       gap: 8px;
@@ -534,6 +551,11 @@ class WebtmuxShortcuts extends LitElement {
                 />
                 <span class="shortcut-label">${shortcut.label}</span>
                 <span class="shortcut-keys">${this.formatKeys(shortcut.keys)}</span>
+                <button
+                  class="action-btn collapsed-toggle ${shortcut.showInCollapsed ? 'active' : ''}"
+                  @click=${() => this.handleToggleCollapsed(shortcut.id)}
+                  title="${shortcut.showInCollapsed ? 'Hide from collapsed panel' : 'Show in collapsed panel'}"
+                >M</button>
                 <div class="shortcut-actions">
                   <button
                     class="action-btn"
@@ -652,6 +674,10 @@ class WebtmuxShortcuts extends LitElement {
 
   handleToggle(id) {
     this.shortcuts = toggleShortcut(this.shortcuts, id);
+  }
+
+  handleToggleCollapsed(id) {
+    this.shortcuts = toggleShowInCollapsed(this.shortcuts, id);
   }
 
   handleMove(id, direction) {

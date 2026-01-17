@@ -1,6 +1,6 @@
 // Mobile controls component
 import { LitElement, html, css } from 'lit';
-import { getShortcuts, sendShortcut } from '../services/shortcuts-service.js';
+import { getShortcuts, getCollapsedShortcuts, sendShortcut } from '../services/shortcuts-service.js';
 
 class WebtmuxMobileControls extends LitElement {
   static properties = {
@@ -502,6 +502,10 @@ class WebtmuxMobileControls extends LitElement {
       this.activePane = e.detail.activePaneId;
     });
 
+    window.addEventListener('shortcuts-updated', (e) => {
+      this.shortcuts = e.detail.shortcuts;
+    });
+
     // Set up orientation listener for auto-expand in landscape
     this._setupOrientationListener();
   }
@@ -728,12 +732,13 @@ class WebtmuxMobileControls extends LitElement {
 
       <!-- Essential controls (visible when collapsed) -->
       <div class="essential-controls" role="toolbar" aria-label="Essential shortcuts">
-        <button class="essential-btn" @click=${this.sendEsc} title="ESC">ESC</button>
-        <button class="essential-btn" @click=${this.sendTab} title="Tab">Tab</button>
-        <button class="essential-btn" @click=${this.sendShiftTab} title="Shift+Tab">⇧Tab</button>
-        <button class="essential-btn" @click=${this.sendCtrlC} title="Ctrl+C">^C</button>
-        <button class="essential-btn" @click=${this.sendPipe} title="Pipe">|</button>
-        <button class="essential-btn" @click=${this.sendSlash} title="Slash">/</button>
+        ${getCollapsedShortcuts(this.shortcuts).map(shortcut => html`
+          <button
+            class="essential-btn"
+            @click=${() => sendShortcut(shortcut)}
+            title="${shortcut.label}"
+          >${shortcut.label}</button>
+        `)}
       </div>
 
       <!-- Collapsible content -->
