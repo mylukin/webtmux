@@ -35,6 +35,10 @@ const bundles = [
     entryPoints: [join(entriesDir, 'xterm-addon-webgl.js')],
     outfile: join(outDir, 'xterm-addon-webgl.js'),
   },
+  {
+    entryPoints: [join(entriesDir, 'xterm-addon-unicode11.js')],
+    outfile: join(outDir, 'xterm-addon-unicode11.js'),
+  },
 ];
 
 console.log('Building vendor bundles...');

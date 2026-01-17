@@ -1,9 +1,26 @@
-.terminal {
-    font-family: "DejaVu Sans Mono", "Everson Mono", FreeMono, Menlo, Terminal, monospace, "Apple Symbols";
+/* Multi-language font family with CJK and emoji support */
+/* 多语言字体族，支持 CJK 和 Emoji */
+:root {
+    --xterm-font-family: "Cascadia Mono", "JetBrains Mono", "Fira Code", "SF Mono",
+        Menlo, Monaco, Consolas, "Liberation Mono", "DejaVu Sans Mono",
+        "Noto Sans Mono",
+        "Noto Sans Mono CJK SC", "Noto Sans Mono CJK JP", "Noto Sans Mono CJK KR",
+        "Source Han Mono SC", "Source Han Mono TC", "Source Han Mono JP", "Source Han Mono KR",
+        "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Twemoji Mozilla",
+        monospace;
+}
+
+/* Apply font to terminal and IME-related elements */
+/* 应用字体到终端和输入法相关元素 */
+.terminal,
+.xterm .xterm-helper-textarea,
+.xterm .composition-view,
+.xterm-overlay {
+    font-family: var(--xterm-font-family);
+    font-variant-ligatures: none;
 }
 
 .xterm-overlay {
-    font-family: "DejaVu Sans Mono", "Everson Mono", FreeMono, Menlo, Terminal, monospace, "Apple Symbols";
     border-radius: 15px;
     font-size: xx-large;
     color: black;

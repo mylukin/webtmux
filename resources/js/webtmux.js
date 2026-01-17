@@ -2,6 +2,7 @@
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebglAddon } from '@xterm/addon-webgl';
+import { Unicode11Addon } from '@xterm/addon-unicode11';
 
 // Import components
 import './components/sidebar.js';
@@ -52,11 +53,23 @@ class WebTmux {
   }
 
   init() {
+    // Multi-language font family with CJK and emoji support
+    // 多语言字体族，支持 CJK 和 Emoji
+    const fontFamily = [
+      '"Cascadia Mono"', '"JetBrains Mono"', '"Fira Code"', '"SF Mono"',
+      'Menlo', 'Monaco', 'Consolas', '"Liberation Mono"', '"DejaVu Sans Mono"',
+      '"Noto Sans Mono"',
+      '"Noto Sans Mono CJK SC"', '"Noto Sans Mono CJK JP"', '"Noto Sans Mono CJK KR"',
+      '"Source Han Mono SC"', '"Source Han Mono TC"', '"Source Han Mono JP"', '"Source Han Mono KR"',
+      '"Apple Color Emoji"', '"Segoe UI Emoji"', '"Noto Color Emoji"', '"Twemoji Mozilla"',
+      'monospace'
+    ].join(', ');
+
     // Create terminal
     this.terminal = new Terminal({
       cursorBlink: true,
       fontSize: 14,
-      fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+      fontFamily: fontFamily,
       theme: {
         background: '#1a1a2e',
         foreground: '#eaeaea',
@@ -67,6 +80,12 @@ class WebTmux {
       allowProposedApi: true,
     });
 
+    // Load Unicode11 addon for correct CJK character width calculation
+    // 加载 Unicode11 插件以正确计算 CJK 字符宽度
+    const unicode11Addon = new Unicode11Addon();
+    this.terminal.loadAddon(unicode11Addon);
+    this.terminal.unicode.activeVersion = '11';
+
     // Add fit addon
     this.fitAddon = new FitAddon();
     this.terminal.loadAddon(this.fitAddon);
@@ -75,9 +94,14 @@ class WebTmux {
     const container = document.getElementById('terminal');
     this.terminal.open(container);
 
-    // Try to load WebGL addon
+    // Try to load WebGL addon with context loss handling
+    // 尝试加载 WebGL 插件，带上下文丢失处理
     try {
       const webglAddon = new WebglAddon();
+      webglAddon.onContextLoss(() => {
+        console.warn('WebGL context lost, falling back to canvas renderer.');
+        webglAddon.dispose();
+      });
       this.terminal.loadAddon(webglAddon);
     } catch (e) {
       console.warn('WebGL addon not supported:', e);
