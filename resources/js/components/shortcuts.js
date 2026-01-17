@@ -205,7 +205,9 @@ class WebtmuxShortcuts extends LitElement {
       width: 90%;
       max-width: 420px;
       max-height: 80vh;
-      overflow-y: auto;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
     }
 
     .modal h2 {
@@ -236,6 +238,13 @@ class WebtmuxShortcuts extends LitElement {
       flex-direction: column;
       gap: 8px;
       margin-bottom: 16px;
+      flex: 1 1 auto;
+      min-height: 0;
+      max-height: 50vh;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      touch-action: pan-y;
+      overscroll-behavior: contain;
     }
 
     .shortcut-item {
@@ -246,6 +255,7 @@ class WebtmuxShortcuts extends LitElement {
       background: #1a1a2e;
       border: 1px solid #0f3460;
       border-radius: 6px;
+      flex-shrink: 0;
     }
 
     .shortcut-item.disabled {
@@ -471,6 +481,7 @@ class WebtmuxShortcuts extends LitElement {
     this.newKeys = [];
     this.selectedTemplate = '';
     this.collapsed = localStorage.getItem('webtmux-mobile-collapsed') === 'true';
+    this._cleanupScrollGate = null;
 
     // Listen for collapse changes from mobile controls
     window.addEventListener('collapse-change', (e) => {
@@ -483,14 +494,49 @@ class WebtmuxShortcuts extends LitElement {
     });
   }
 
+  _attachScrollGate() {
+    const scrollEl = this.shadowRoot.querySelector('.shortcut-list');
+    if (!scrollEl) return;
+
+    let startY = 0;
+
+    const onTouchStart = (e) => {
+      startY = e.touches[0].clientY;
+    };
+
+    const onTouchMove = (e) => {
+      const currentY = e.touches[0].clientY;
+      const deltaY = currentY - startY;
+      const atTop = scrollEl.scrollTop <= 0;
+      const atBottom = scrollEl.scrollTop + scrollEl.clientHeight >= scrollEl.scrollHeight - 1;
+
+      if ((atTop && deltaY > 0) || (atBottom && deltaY < 0)) {
+        e.preventDefault();
+      }
+      startY = currentY;
+    };
+
+    scrollEl.addEventListener('touchstart', onTouchStart, { passive: true });
+    scrollEl.addEventListener('touchmove', onTouchMove, { passive: false });
+
+    this._cleanupScrollGate = () => {
+      scrollEl.removeEventListener('touchstart', onTouchStart);
+      scrollEl.removeEventListener('touchmove', onTouchMove);
+    };
+  }
+
   updated(changedProperties) {
     super.updated(changedProperties);
-    // Make component visible when settings modal is open (overrides hidden class on mobile)
     if (changedProperties.has('showSettings')) {
       if (this.showSettings) {
         this.style.display = 'block';
+        this.updateComplete.then(() => this._attachScrollGate());
       } else {
         this.style.display = '';
+        if (this._cleanupScrollGate) {
+          this._cleanupScrollGate();
+          this._cleanupScrollGate = null;
+        }
       }
     }
     if (changedProperties.has('collapsed')) {
@@ -555,7 +601,7 @@ class WebtmuxShortcuts extends LitElement {
                   class="action-btn collapsed-toggle ${shortcut.showInCollapsed ? 'active' : ''}"
                   @click=${() => this.handleToggleCollapsed(shortcut.id)}
                   title="${shortcut.showInCollapsed ? 'Hide from collapsed panel' : 'Show in collapsed panel'}"
-                >M</button>
+                >📌</button>
                 <div class="shortcut-actions">
                   <button
                     class="action-btn"
