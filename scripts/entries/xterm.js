@@ -22,11 +22,13 @@ const log = (msg, data) => {
   if (DEBUG) console.log(`[xterm-ios-fix] ${msg}`, data || '');
 };
 
-// Check if we're on a mobile/touch device
-const isMobile = () => {
+// Detect actual iOS/Android touch devices (exclude desktop Mac with trackpad)
+const isTouchMobileDevice = () => {
   if (typeof navigator === 'undefined') return false;
-  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-    navigator.maxTouchPoints > 1;
+  const ua = navigator.userAgent;
+  const isIOS = /iPhone|iPad|iPod/.test(ua);
+  const isAndroid = /Android/.test(ua);
+  return isIOS || isAndroid;
 };
 
 // Create a patched Terminal class
@@ -34,8 +36,7 @@ class PatchedTerminal extends OriginalTerminal {
   constructor(options) {
     super(options);
 
-    // Only apply patch on mobile devices
-    if (isMobile()) {
+    if (isTouchMobileDevice()) {
       this._applyIOSInputFix();
     }
   }
@@ -43,21 +44,18 @@ class PatchedTerminal extends OriginalTerminal {
   _applyIOSInputFix() {
     const self = this;
 
-    // Wait for the terminal to be opened and have a textarea
     const originalOpen = this.open.bind(this);
     this.open = function(parent) {
       originalOpen(parent);
 
-      // After opening, patch the input handling
       setTimeout(() => {
         const textarea = parent.querySelector('.xterm-helper-textarea');
         if (!textarea) return;
 
-        // Track composition state ourselves (more reliable than internal properties)
         let isInComposition = false;
         let compositionEndTime = 0;
+        let lastKeyDownTime = 0;
 
-        // Listen for composition events to track state
         textarea.addEventListener('compositionstart', () => {
           isInComposition = true;
           log('compositionstart');
@@ -69,47 +67,55 @@ class PatchedTerminal extends OriginalTerminal {
           log('compositionend');
         }, true);
 
-        // Listen for input events and recover dropped characters
-        // xterm.js uses capture phase, we use bubble phase (runs after)
+        // Track keydown to avoid re-sending keyboard input
+        // xterm.js handles normal keyboard via keydown, we should NOT re-send it
+        textarea.addEventListener('keydown', (ev) => {
+          // Only track printable keys (not modifiers, arrows, etc.)
+          if (ev.key.length === 1 || ev.key === 'Enter' || ev.key === 'Tab') {
+            lastKeyDownTime = Date.now();
+            log('keydown:', ev.key);
+          }
+        }, true);
+
         textarea.addEventListener('input', (ev) => {
-          // Only handle insertText events with data
           if (ev.inputType !== 'insertText' || !ev.data) {
             return;
           }
 
-          // If xterm.js handled it, the textarea value should be cleared
-          // and the event may be default prevented
           if (ev.defaultPrevented) {
             log('Handled by xterm.js (defaultPrevented)');
             return;
           }
 
-          // Skip if we're in an active composition
-          // CompositionHelper will handle it
           if (isInComposition) {
             log('Skipping (in composition)');
             return;
           }
 
-          // Skip if compositionend just fired (within 100ms)
-          // This prevents emoji duplication - CompositionHelper sends via setTimeout(0)
-          // 如果 compositionend 刚触发（100ms 内），跳过
-          // 这防止了 emoji 重复 - CompositionHelper 通过 setTimeout(0) 发送
           const timeSinceCompositionEnd = Date.now() - compositionEndTime;
           if (timeSinceCompositionEnd < 100) {
             log(`Skipping (compositionend was ${timeSinceCompositionEnd}ms ago)`);
             return;
           }
 
-          // At this point, xterm.js dropped the input due to:
-          // ev.composed=true && _keyDownSeen=true (the bug)
-          // We need to send it ourselves
+          // Skip if a keydown just fired (within 50ms)
+          // This means xterm.js already handled it via keyboard input path
+          // 如果 keydown 刚触发（50ms 内），跳过
+          // 这意味着 xterm.js 已经通过键盘输入路径处理了它
+          const timeSinceKeyDown = Date.now() - lastKeyDownTime;
+          if (timeSinceKeyDown < 50) {
+            log(`Skipping (keydown was ${timeSinceKeyDown}ms ago)`);
+            return;
+          }
+
+          // At this point, input was NOT from keyboard (no recent keydown)
+          // This is likely Chinese punctuation that xterm.js dropped
           log('Recovering dropped input:', ev.data);
 
           if (self._core && self._core.coreService) {
             self._core.coreService.triggerDataEvent(ev.data, true);
           }
-        }, false); // bubble phase
+        }, false);
 
       }, 0);
     };
