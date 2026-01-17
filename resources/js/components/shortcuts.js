@@ -241,10 +241,11 @@ class WebtmuxShortcuts extends LitElement {
       flex: 1 1 auto;
       min-height: 0;
       max-height: 50vh;
-      overflow-y: auto;
+      overflow-y: scroll;
       -webkit-overflow-scrolling: touch;
-      touch-action: pan-y;
-      overscroll-behavior: contain;
+      overscroll-behavior-y: contain;
+      -webkit-transform: translateZ(0);
+      transform: translateZ(0);
     }
 
     .shortcut-item {
@@ -481,7 +482,6 @@ class WebtmuxShortcuts extends LitElement {
     this.newKeys = [];
     this.selectedTemplate = '';
     this.collapsed = localStorage.getItem('webtmux-mobile-collapsed') === 'true';
-    this._cleanupScrollGate = null;
 
     // Listen for collapse changes from mobile controls
     window.addEventListener('collapse-change', (e) => {
@@ -494,49 +494,13 @@ class WebtmuxShortcuts extends LitElement {
     });
   }
 
-  _attachScrollGate() {
-    const scrollEl = this.shadowRoot.querySelector('.shortcut-list');
-    if (!scrollEl) return;
-
-    let startY = 0;
-
-    const onTouchStart = (e) => {
-      startY = e.touches[0].clientY;
-    };
-
-    const onTouchMove = (e) => {
-      const currentY = e.touches[0].clientY;
-      const deltaY = currentY - startY;
-      const atTop = scrollEl.scrollTop <= 0;
-      const atBottom = scrollEl.scrollTop + scrollEl.clientHeight >= scrollEl.scrollHeight - 1;
-
-      if ((atTop && deltaY > 0) || (atBottom && deltaY < 0)) {
-        e.preventDefault();
-      }
-      startY = currentY;
-    };
-
-    scrollEl.addEventListener('touchstart', onTouchStart, { passive: true });
-    scrollEl.addEventListener('touchmove', onTouchMove, { passive: false });
-
-    this._cleanupScrollGate = () => {
-      scrollEl.removeEventListener('touchstart', onTouchStart);
-      scrollEl.removeEventListener('touchmove', onTouchMove);
-    };
-  }
-
   updated(changedProperties) {
     super.updated(changedProperties);
     if (changedProperties.has('showSettings')) {
       if (this.showSettings) {
         this.style.display = 'block';
-        this.updateComplete.then(() => this._attachScrollGate());
       } else {
         this.style.display = '';
-        if (this._cleanupScrollGate) {
-          this._cleanupScrollGate();
-          this._cleanupScrollGate = null;
-        }
       }
     }
     if (changedProperties.has('collapsed')) {
