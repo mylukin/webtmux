@@ -327,6 +327,7 @@ func (server *Server) handleTmuxEvents(ctx context.Context, tty *webtty.WebTTY) 
 				lastLayout = currentLayout
 				if err := tty.SendTmuxLayout(); err != nil {
 					log.Printf("Failed to send tmux layout: %v", err)
+					return // Exit goroutine on connection error
 				}
 			}
 		}
