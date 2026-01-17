@@ -197,4 +197,27 @@ if (elem !== null) {
         closer();
         term.close();
     });
+
+    // Primary: Check connection when page becomes visible (most important for mobile)
+    document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") {
+            console.log("[Main] Page visible, checking connection...");
+            wt.checkConnection();
+        }
+    });
+
+    // Secondary: Check connection when network comes back online
+    window.addEventListener("online", () => {
+        console.log("[Main] Network online, checking connection...");
+        // Small delay to let network stabilize
+        setTimeout(() => wt.checkConnection(), 500);
+    });
+
+    // Tertiary: Handle bfcache (back-forward cache) restoration
+    window.addEventListener("pageshow", (event) => {
+        if (event.persisted) {
+            console.log("[Main] Page restored from bfcache, checking connection...");
+            wt.checkConnection();
+        }
+    });
 }
