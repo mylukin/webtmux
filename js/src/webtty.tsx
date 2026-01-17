@@ -126,6 +126,23 @@ export class WebTTY {
      */
     bufSize: number;
 
+    /*
+     * Timestamp of the last pong received from the server.
+     * Used to detect stale connections when browser returns from background.
+     */
+    private lastPongAt: number = Date.now();
+
+    /*
+     * Reference to the current connection for health checks.
+     */
+    private currentConnection: Connection | null = null;
+
+    /*
+     * Staleness threshold in milliseconds (60s = 2x ping interval).
+     * If no pong received within this time, connection is considered stale.
+     */
+    private readonly STALE_THRESHOLD_MS = 60 * 1000;
+
     constructor(term: Terminal, connectionFactory: ConnectionFactory, args: string, authToken: string) {
         this.term = term;
         this.connectionFactory = connectionFactory;
@@ -137,9 +154,11 @@ export class WebTTY {
 
     open() {
         let connection = this.connectionFactory.create();
-        let pingTimer: NodeJS.Timeout;
-        let reconnectTimeout: NodeJS.Timeout;
+        let pingTimer: ReturnType<typeof setInterval>;
+        let reconnectTimeout: ReturnType<typeof setTimeout>;
         this.connection = connection;
+        this.currentConnection = connection;
+        this.lastPongAt = Date.now();
 
         const setup = () => {
             connection.onOpen(() => {
@@ -173,6 +192,7 @@ export class WebTTY {
                         this.term.output(Uint8Array.from(atob(payload), c => c.charCodeAt(0)));
                         break;
                     case msgPong:
+                        this.lastPongAt = Date.now();
                         break;
                     case msgSetWindowTitle:
                         this.term.setWindowTitle(payload);
@@ -200,6 +220,8 @@ export class WebTTY {
                 if (this.reconnect > 0) {
                     reconnectTimeout = setTimeout(() => {
                         connection = this.connectionFactory.create();
+                        this.currentConnection = connection;
+                        this.lastPongAt = Date.now();
                         this.term.reset();
                         setup();
                     }, this.reconnect * 1000);
@@ -267,4 +289,18 @@ export class WebTTY {
         this.connection.send(msgSetEncoding + encoding)
     }
 
+    /*
+     * Check if the connection is stale and force a reconnect if needed.
+     * Called by main.ts when the page becomes visible or network comes online.
+     */
+    public checkConnection(): void {
+        const timeSinceLastPong = Date.now() - this.lastPongAt;
+        const isStale = timeSinceLastPong > this.STALE_THRESHOLD_MS;
+        const isOpen = this.currentConnection?.isOpen() ?? false;
+
+        if (!isOpen || isStale) {
+            console.log(`[WebTTY] Connection stale (${Math.round(timeSinceLastPong / 1000)}s since last pong), forcing reconnect...`);
+            this.currentConnection?.close();
+        }
+    }
 };
