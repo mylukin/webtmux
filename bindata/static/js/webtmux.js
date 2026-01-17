@@ -507,6 +507,7 @@ class WebTmux {
 
     return result;
   }
+
 }
 
 // Initialize when DOM is ready
