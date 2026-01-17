@@ -1,0 +1,22 @@
+{
+  "name": "webtmux",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build:css": "tailwindcss -i ./resources/css/tailwind.css -o ./resources/css/tailwind-out.css --minify",
+    "build:vendor": "node scripts/build-vendor.mjs",
+    "build": "npm run build:css && npm run build:vendor",
+    "watch:css": "tailwindcss -i ./resources/css/tailwind.css -o ./resources/css/tailwind-out.css --watch"
+  },
+  "devDependencies": {
+    "esbuild": "^0.27.2",
+    "tailwindcss": "^3.4.17"
+  },
+  "dependencies": {
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/addon-unicode11": "^0.8.0",
+    "@xterm/addon-webgl": "^0.18.0",
+    "@xterm/xterm": "^5.5.0",
+    "lit": "^3.3.2"
+  }
+}

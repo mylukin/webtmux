@@ -126,6 +126,39 @@ export class WebTTY {
      */
     bufSize: number;
 
+    /*
+     * Timestamp of the last pong received from the server.
+     * Used to detect stale connections when browser returns from background.
+     */
+    private lastPongAt: number = Date.now();
+
+    /*
+     * Reference to the current connection for health checks.
+     */
+    private currentConnection: Connection | null = null;
+
+    /*
+     * Staleness threshold in milliseconds (10s - quick detection for mobile).
+     * If no pong received within this time, connection is considered stale.
+     */
+    private readonly STALE_THRESHOLD_MS = 10 * 1000;
+
+    /*
+     * Timeout for ping verification when checking connection health.
+     * If no pong received within this time after sending ping, force reconnect.
+     */
+    private readonly PING_VERIFY_TIMEOUT_MS = 3 * 1000;
+
+    /*
+     * Flag to track if we're waiting for a verification pong.
+     */
+    private waitingForVerifyPong: boolean = false;
+
+    /*
+     * Timer for ping verification timeout.
+     */
+    private verifyPongTimer: ReturnType<typeof setTimeout> | null = null;
+
     constructor(term: Terminal, connectionFactory: ConnectionFactory, args: string, authToken: string) {
         this.term = term;
         this.connectionFactory = connectionFactory;
@@ -137,9 +170,11 @@ export class WebTTY {
 
     open() {
         let connection = this.connectionFactory.create();
-        let pingTimer: NodeJS.Timeout;
-        let reconnectTimeout: NodeJS.Timeout;
+        let pingTimer: ReturnType<typeof setInterval>;
+        let reconnectTimeout: ReturnType<typeof setTimeout>;
         this.connection = connection;
+        this.currentConnection = connection;
+        this.lastPongAt = Date.now();
 
         const setup = () => {
             connection.onOpen(() => {
@@ -173,6 +208,16 @@ export class WebTTY {
                         this.term.output(Uint8Array.from(atob(payload), c => c.charCodeAt(0)));
                         break;
                     case msgPong:
+                        this.lastPongAt = Date.now();
+                        // Clear verification timer if we were waiting for pong
+                        if (this.waitingForVerifyPong) {
+                            this.waitingForVerifyPong = false;
+                            if (this.verifyPongTimer) {
+                                clearTimeout(this.verifyPongTimer);
+                                this.verifyPongTimer = null;
+                            }
+                            console.log('[WebTTY] Connection verified, pong received');
+                        }
                         break;
                     case msgSetWindowTitle:
                         this.term.setWindowTitle(payload);
@@ -195,14 +240,30 @@ export class WebTTY {
 
             connection.onClose(() => {
                 clearInterval(pingTimer);
+
+                // Clean up any pending verification
+                this.waitingForVerifyPong = false;
+                if (this.verifyPongTimer) {
+                    clearTimeout(this.verifyPongTimer);
+                    this.verifyPongTimer = null;
+                }
+
                 this.term.deactivate();
-                this.term.showMessage("Connection Closed", 0);
+
                 if (this.reconnect > 0) {
+                    this.term.showMessage(`Reconnecting in ${this.reconnect}s...`, 0);
                     reconnectTimeout = setTimeout(() => {
+                        this.term.removeMessage();
+                        this.term.showMessage("Connecting...", 0);
                         connection = this.connectionFactory.create();
+                        this.connection = connection;
+                        this.currentConnection = connection;
+                        this.lastPongAt = Date.now();
                         this.term.reset();
                         setup();
                     }, this.reconnect * 1000);
+                } else {
+                    this.term.showMessage("Connection Closed", 0);
                 }
             });
 
@@ -267,4 +328,84 @@ export class WebTTY {
         this.connection.send(msgSetEncoding + encoding)
     }
 
+    /*
+     * Check if the connection is stale and force a reconnect if needed.
+     * Called by main.ts when the page becomes visible or network comes online.
+     *
+     * Strategy:
+     * 1. If connection appears closed, force reconnect immediately
+     * 2. If connection appears open but stale (no pong for >10s), force reconnect
+     * 3. If connection appears open and recent, send verification ping
+     *    - If no pong within 3s, force reconnect (zombie connection)
+     */
+    public checkConnection(): void {
+        const timeSinceLastPong = Date.now() - this.lastPongAt;
+        const isStale = timeSinceLastPong > this.STALE_THRESHOLD_MS;
+        const isOpen = this.currentConnection?.isOpen() ?? false;
+
+        console.log(`[WebTTY] Checking connection: isOpen=${isOpen}, timeSinceLastPong=${Math.round(timeSinceLastPong / 1000)}s, isStale=${isStale}`);
+
+        // Case 1 & 2: Connection is definitely dead or stale
+        if (!isOpen || isStale) {
+            console.log(`[WebTTY] Connection dead or stale, forcing reconnect...`);
+            this.forceReconnect();
+            return;
+        }
+
+        // Case 3: Connection appears open and recent - verify with ping
+        // Skip if we're already verifying
+        if (this.waitingForVerifyPong) {
+            console.log('[WebTTY] Already waiting for verification pong, skipping...');
+            return;
+        }
+
+        console.log('[WebTTY] Connection appears open, sending verification ping...');
+        this.sendVerificationPing();
+    }
+
+    /*
+     * Send a verification ping and set up timeout for forced reconnect.
+     */
+    private sendVerificationPing(): void {
+        this.waitingForVerifyPong = true;
+
+        // Set up timeout - if no pong within 3s, connection is zombie
+        this.verifyPongTimer = setTimeout(() => {
+            if (this.waitingForVerifyPong) {
+                console.log('[WebTTY] Verification ping timeout - zombie connection detected, forcing reconnect...');
+                this.waitingForVerifyPong = false;
+                this.verifyPongTimer = null;
+                this.forceReconnect();
+            }
+        }, this.PING_VERIFY_TIMEOUT_MS);
+
+        // Send the ping
+        try {
+            this.connection.send(msgPing);
+        } catch (e) {
+            console.log('[WebTTY] Failed to send verification ping, forcing reconnect...');
+            this.waitingForVerifyPong = false;
+            if (this.verifyPongTimer) {
+                clearTimeout(this.verifyPongTimer);
+                this.verifyPongTimer = null;
+            }
+            this.forceReconnect();
+        }
+    }
+
+    /*
+     * Force close the current connection to trigger reconnect.
+     */
+    private forceReconnect(): void {
+        // Clean up any pending verification
+        this.waitingForVerifyPong = false;
+        if (this.verifyPongTimer) {
+            clearTimeout(this.verifyPongTimer);
+            this.verifyPongTimer = null;
+        }
+
+        // Close current connection - this will trigger onClose handler
+        // which will initiate reconnect if reconnect is enabled
+        this.currentConnection?.close();
+    }
 };

@@ -199,11 +199,7 @@ func (server *Server) wrapHeaders(handler http.Handler) http.Handler {
 func (server *Server) wrapBasicAuth(handler http.Handler, credential string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Extract IP (handle proxies)
-		ip := r.RemoteAddr
-		if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
-			ip = strings.Split(forwarded, ",")[0]
-		}
-		ip = strings.TrimSpace(strings.Split(ip, ":")[0])
+		ip := clientIPFromRequest(r)
 
 		// Check if locked out
 		if locked, remaining, lockType := authRateLimiter.checkLocked(ip); locked {

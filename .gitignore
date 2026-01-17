@@ -13,7 +13,26 @@ Thumbs.db
 *.test
 *.out
 
+# JavaScript/Node.js
+node_modules/
+js/node_modules/
+js/dist/
+js/typings/
+
+# Frontend build output (built from source)
+resources/css/tailwind-out.css
+resources/css/xterm.css
+resources/js/vendor/
+
 # Local build (not cross-compiled)
 /webtmux
 
-# Don't ignore builds/ - we want prebuilt binaries in repo
+# Build output (use GitHub Releases for distribution)
+builds/
+
+# Playwright MCP temp files
+.playwright-mcp/
+
+# Coverage reports
+coverage.out
+coverage.html

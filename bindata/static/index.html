@@ -5,34 +5,84 @@
   <link rel="manifest" href="manifest.json" crossorigin="use-credentials">
   <link rel="icon" href="favicon.ico">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+
+  <!-- iOS PWA Meta Tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="WebTmux">
+  <link rel="apple-touch-icon" href="icon_192.png">
+
+  <!-- Android/Chrome Theme -->
+  <meta name="theme-color" content="#1a1a2e">
+  <meta name="mobile-web-app-capable" content="yes">
 
   <!-- Tailwind CSS -->
-  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="css/tailwind.css">
 
   <!-- xterm.js styles -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css" />
+  <link rel="stylesheet" href="css/xterm.css">
 
   <style>
+    :root {
+      /* Default mobile controls height (expanded with shortcuts) */
+      --mobile-controls-height: 190px;
+      /* Collapsed height */
+      --mobile-controls-collapsed-height: 80px;
+      /* Keyboard height (set dynamically by JavaScript) */
+      --keyboard-height: 0px;
+    }
     html, body {
       margin: 0;
       padding: 0;
       height: 100%;
+      height: 100dvh; /* Dynamic viewport height - adjusts with keyboard */
       overflow: hidden;
       background: #1a1a2e;
+      /* Prevent pull-to-refresh on iOS Safari */
+      overscroll-behavior: none;
+      overscroll-behavior-y: contain;
+      -webkit-overflow-scrolling: touch;
+      /* Safe area for notched devices in standalone mode */
+      padding-top: env(safe-area-inset-top);
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
     }
     #app {
       display: flex;
       height: 100%;
       width: 100%;
+      transition: height 150ms ease-out;
+    }
+    /* On mobile, reserve space for mobile controls at bottom */
+    @media (max-width: 1023px) {
+      #app {
+        height: calc(100% - var(--mobile-controls-height));
+      }
+      #app.controls-collapsed {
+        height: calc(100% - var(--mobile-controls-collapsed-height));
+      }
+      /* When keyboard is open, adjust layout */
+      #app.keyboard-open {
+        height: calc(100% - var(--mobile-controls-height));
+      }
+      #app.keyboard-open.controls-collapsed {
+        height: calc(100% - var(--mobile-controls-collapsed-height));
+      }
     }
     #terminal-container {
       flex: 1;
       min-width: 0;
+      display: flex;
+      flex-direction: column;
     }
     #terminal {
-      height: 100%;
+      flex: 1;
       width: 100%;
+      min-height: 0;
+      /* Prevent browser scroll gestures from interfering with terminal */
+      overscroll-behavior: contain;
+      touch-action: pan-y pinch-zoom;
     }
     .xterm {
       height: 100%;
@@ -44,11 +94,12 @@
   <script type="importmap">
   {
     "imports": {
-      "lit": "https://cdn.jsdelivr.net/npm/lit@3/+esm",
-      "lit/decorators.js": "https://cdn.jsdelivr.net/npm/lit@3/decorators.js/+esm",
-      "@xterm/xterm": "https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/+esm",
-      "@xterm/addon-fit": "https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/+esm",
-      "@xterm/addon-webgl": "https://cdn.jsdelivr.net/npm/@xterm/addon-webgl@0.18.0/+esm"
+      "lit": "./js/vendor/lit.js",
+      "lit/decorators.js": "./js/vendor/lit-decorators.js",
+      "@xterm/xterm": "./js/vendor/xterm.js",
+      "@xterm/addon-fit": "./js/vendor/xterm-addon-fit.js",
+      "@xterm/addon-webgl": "./js/vendor/xterm-addon-webgl.js",
+      "@xterm/addon-unicode11": "./js/vendor/xterm-addon-unicode11.js"
     }
   }
   </script>
@@ -58,6 +109,8 @@
   <div id="app">
     <div id="terminal-container">
       <div id="terminal"></div>
+      <!-- Keyboard shortcuts bar (tablet only - mobile uses mobile-controls, desktop uses physical keyboard) -->
+      <webtmux-shortcuts class="hidden lg:block xl:hidden"></webtmux-shortcuts>
     </div>
     <webtmux-sidebar id="sidebar" class="hidden lg:block"></webtmux-sidebar>
   </div>
@@ -68,5 +121,150 @@
   <script src="./auth_token.js"></script>
   <script src="./config.js"></script>
   <script type="module" src="./js/webtmux.js"></script>
+
+  <!-- Prevent pull-to-refresh on iOS Safari (JavaScript fallback) -->
+  <script>
+    (function() {
+      // Prevent pull-to-refresh at page boundaries
+      let startY = 0;
+      const terminalContainer = document.getElementById('terminal-container');
+
+      document.addEventListener('touchstart', function(e) {
+        startY = e.touches[0].pageY;
+      }, { passive: true });
+
+      document.addEventListener('touchmove', function(e) {
+        const y = e.touches[0].pageY;
+        const scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+
+        // At top of page and pulling down - prevent refresh
+        if (scrollTop <= 0 && y > startY) {
+          // Only prevent if the touch is on the terminal area
+          if (e.target.closest('#terminal') || e.target.closest('#terminal-container')) {
+            e.preventDefault();
+          }
+        }
+      }, { passive: false });
+    })();
+  </script>
+
+  <!-- Handle mobile controls collapse state and keyboard detection -->
+  <script>
+    (function() {
+      const app = document.getElementById('app');
+      const root = document.documentElement;
+      let lastKeyboardHeight = 0;
+
+      // Initialize from localStorage
+      if (localStorage.getItem('webtmux-mobile-collapsed') === 'true') {
+        app.classList.add('controls-collapsed');
+      }
+
+      // Listen for collapse changes
+      window.addEventListener('collapse-change', function(e) {
+        if (e.detail.collapsed) {
+          app.classList.add('controls-collapsed');
+        } else {
+          app.classList.remove('controls-collapsed');
+        }
+
+        // Trigger terminal resize after transition
+        setTimeout(function() {
+          if (window.webtmux && window.webtmux.fit) {
+            window.webtmux.fit();
+          }
+        }, 300);
+      });
+
+      // Keyboard detection using visualViewport API
+      function handleViewportResize() {
+        if (!window.visualViewport) return;
+
+        const viewportHeight = window.visualViewport.height;
+        const viewportOffsetTop = window.visualViewport.offsetTop || 0;
+        const windowHeight = window.innerHeight;
+        const keyboardHeight = Math.max(0, windowHeight - (viewportHeight + viewportOffsetTop));
+
+        // Only consider it a keyboard if height difference is significant (> 100px)
+        const isKeyboardOpen = keyboardHeight > 100;
+
+        // Small buffer for iOS autofill toolbar
+        const autofillBuffer = 0;
+
+        // Determine which component is visible based on screen width
+        // mobile-controls: shown at < 1024px (lg breakpoint)
+        // shortcuts: shown at 1024-1279px (lg to xl breakpoint)
+        const screenWidth = window.innerWidth;
+        const isMobileControlsVisible = screenWidth < 1024;
+        const isShortcutsVisible = screenWidth >= 1024 && screenWidth < 1280;
+
+        if (isKeyboardOpen) {
+          // Keyboard is open
+          root.style.setProperty('--keyboard-height', keyboardHeight + 'px');
+          app.classList.add('keyboard-open');
+
+          // Handle mobile-controls (shown on screens < 1024px)
+          if (isMobileControlsVisible) {
+            const mobileControls = document.querySelector('webtmux-mobile-controls');
+            if (mobileControls) {
+              mobileControls.style.setProperty('--keyboard-offset', (keyboardHeight + autofillBuffer) + 'px');
+            }
+          }
+
+          // Handle shortcuts component (shown on tablet 1024-1279px)
+          // This needs keyboard handling because it's normally inline, not fixed
+          if (isShortcutsVisible) {
+            const shortcuts = document.querySelector('webtmux-shortcuts');
+            if (shortcuts) {
+              shortcuts.classList.add('keyboard-open');
+              shortcuts.style.setProperty('--keyboard-offset', (keyboardHeight + autofillBuffer) + 'px');
+            }
+          }
+        } else {
+          // Keyboard is closed - reset positions
+          root.style.setProperty('--keyboard-height', '0px');
+          app.classList.remove('keyboard-open');
+
+          const mobileControls = document.querySelector('webtmux-mobile-controls');
+          if (mobileControls) {
+            mobileControls.style.setProperty('--keyboard-offset', '0px');
+          }
+
+          const shortcuts = document.querySelector('webtmux-shortcuts');
+          if (shortcuts) {
+            shortcuts.classList.remove('keyboard-open');
+            shortcuts.style.setProperty('--keyboard-offset', '0px');
+          }
+        }
+
+        // Only trigger resize if keyboard state changed significantly
+        if (Math.abs(keyboardHeight - lastKeyboardHeight) > 50) {
+          lastKeyboardHeight = keyboardHeight;
+          setTimeout(function() {
+            if (window.webtmux && window.webtmux.fit) {
+              window.webtmux.fit();
+            }
+          }, 100);
+        }
+      }
+
+      // Set up visualViewport listeners
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', handleViewportResize);
+        window.visualViewport.addEventListener('scroll', handleViewportResize);
+      }
+
+      // Fallback for browsers without visualViewport
+      window.addEventListener('resize', function() {
+        if (!window.visualViewport) {
+          setTimeout(function() {
+            if (window.webtmux && window.webtmux.fit) {
+              window.webtmux.fit();
+            }
+          }, 300);
+        }
+      });
+    })();
+  </script>
 </body>
 </html>

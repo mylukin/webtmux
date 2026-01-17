@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -74,10 +75,11 @@ func (server *Server) generateHandleWS(ctx context.Context, cancel context.Cance
 		}
 		defer conn.Close()
 
+		clientIP := clientIPFromRequest(r)
 		if server.options.PassHeaders {
-			err = server.processWSConn(ctx, conn, r.Header)
+			err = server.processWSConn(ctx, conn, r.Header, clientIP)
 		} else {
-			err = server.processWSConn(ctx, conn, nil)
+			err = server.processWSConn(ctx, conn, nil, clientIP)
 		}
 
 		switch err {
@@ -93,7 +95,82 @@ func (server *Server) generateHandleWS(ctx context.Context, cancel context.Cance
 	}
 }
 
-func (server *Server) processWSConn(ctx context.Context, conn *websocket.Conn, headers map[string][]string) error {
+func (server *Server) generateHandleWT(ctx context.Context, cancel context.CancelFunc, counter *counter) http.HandlerFunc {
+	once := new(int64)
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		if server.options.Once {
+			success := atomic.CompareAndSwapInt64(once, 0, 1)
+			if !success {
+				http.Error(w, "Server is shutting down", http.StatusServiceUnavailable)
+				return
+			}
+		}
+
+		num := counter.add(1)
+		closeReason := "unknown reason"
+
+		defer func() {
+			num := counter.done()
+			log.Printf(
+				"WebTransport connection closed by %s: %s, connections: %d/%d",
+				closeReason, r.RemoteAddr, num, server.options.MaxConnection,
+			)
+
+			if server.options.Once {
+				cancel()
+			}
+		}()
+
+		if int64(server.options.MaxConnection) != 0 {
+			if num > server.options.MaxConnection {
+				closeReason = "exceeding max number of connections"
+				return
+			}
+		}
+
+		log.Printf("New WebTransport client connected: %s, connections: %d/%d", r.RemoteAddr, num, server.options.MaxConnection)
+
+		// Upgrade to WebTransport session
+		session, err := server.wtServer.Upgrade(w, r)
+		if err != nil {
+			closeReason = fmt.Sprintf("upgrade failed: %v", err)
+			return
+		}
+
+		// Accept bidirectional stream from client
+		stream, err := session.AcceptStream(ctx)
+		if err != nil {
+			closeReason = fmt.Sprintf("stream accept failed: %v", err)
+			session.CloseWithError(1, "failed to accept stream")
+			return
+		}
+
+		transport := newWTTransport(session, stream)
+		defer transport.Close()
+
+		var headers map[string][]string
+		if server.options.PassHeaders {
+			headers = r.Header
+		}
+
+		clientIP := clientIPFromRequest(r)
+		err = server.processTransportConn(ctx, transport, headers, clientIP)
+
+		switch err {
+		case ctx.Err():
+			closeReason = "cancelation"
+		case webtty.ErrSlaveClosed:
+			closeReason = server.factory.Name()
+		case webtty.ErrMasterClosed:
+			closeReason = "client"
+		default:
+			closeReason = fmt.Sprintf("an error: %s", err)
+		}
+	}
+}
+
+func (server *Server) processWSConn(ctx context.Context, conn *websocket.Conn, headers map[string][]string, clientIP string) error {
 	typ, initLine, err := conn.ReadMessage()
 	if err != nil {
 		return errors.Wrapf(err, "failed to authenticate websocket connection")
@@ -107,7 +184,7 @@ func (server *Server) processWSConn(ctx context.Context, conn *websocket.Conn, h
 	if err != nil {
 		return errors.Wrapf(err, "failed to authenticate websocket connection")
 	}
-	if init.AuthToken != server.options.Credential {
+	if !server.validateAuthToken(init.AuthToken, clientIP) {
 		return errors.New("failed to authenticate websocket connection")
 	}
 
@@ -145,37 +222,79 @@ func (server *Server) processWSConn(ctx context.Context, conn *websocket.Conn, h
 		return errors.Wrapf(err, "failed to fill window title template")
 	}
 
-	opts := []webtty.Option{
-		webtty.WithWindowTitle(titleBuf.Bytes()),
-	}
-	if server.options.PermitWrite {
-		opts = append(opts, webtty.WithPermitWrite())
-	}
-	if server.options.EnableReconnect {
-		opts = append(opts, webtty.WithReconnect(server.options.ReconnectTime))
-	}
-	if server.options.Width > 0 {
-		opts = append(opts, webtty.WithFixedColumns(server.options.Width))
-	}
-	if server.options.Height > 0 {
-		opts = append(opts, webtty.WithFixedRows(server.options.Height))
-	}
-	tty, err := webtty.New(&wsWrapper{conn}, slave, opts...)
+	opts := server.buildTTYOptions(titleBuf.Bytes())
+	tty, err := webtty.New(&wsTransport{conn}, slave, opts...)
 	if err != nil {
 		return errors.Wrapf(err, "failed to create webtty")
 	}
 
-	// Set up tmux controller if available
-	if server.tmuxCtrl != nil {
-		tty.SetTmuxController(server.tmuxCtrl)
+	return server.runTTYWithTmux(ctx, tty)
+}
 
-		// Start goroutine to listen for tmux events and broadcast layout updates
-		go server.handleTmuxEvents(ctx, tty)
+// processTransportConn handles a connection using the Transport interface.
+// This is transport-agnostic and works with both WebSocket and WebTransport.
+func (server *Server) processTransportConn(ctx context.Context, transport Transport, headers map[string][]string, clientIP string) error {
+	// Read init message
+	initBuf := make([]byte, 4096)
+	n, err := transport.Read(initBuf)
+	if err != nil {
+		return errors.Wrapf(err, "failed to read init message")
 	}
 
-	err = tty.Run(ctx)
+	var init InitMessage
+	err = json.Unmarshal(initBuf[:n], &init)
+	if err != nil {
+		return errors.Wrapf(err, "failed to parse init message")
+	}
+	authIP := clientIP
+	if authIP == "" {
+		authIP = ipFromAddr(transport.RemoteAddr())
+	}
+	if !server.validateAuthToken(init.AuthToken, authIP) {
+		return errors.New("authentication failed")
+	}
 
-	return err
+	queryPath := "?"
+	if server.options.PermitArguments && init.Arguments != "" {
+		queryPath = init.Arguments
+	}
+
+	query, err := url.Parse(queryPath)
+	if err != nil {
+		return errors.Wrapf(err, "failed to parse arguments")
+	}
+	params := query.Query()
+	var slave Slave
+	slave, err = server.factory.New(params, headers)
+	if err != nil {
+		return errors.Wrapf(err, "failed to create backend")
+	}
+	defer slave.Close()
+
+	titleVars := server.titleVariables(
+		[]string{"server", "master", "slave"},
+		map[string]map[string]interface{}{
+			"server": server.options.TitleVariables,
+			"master": map[string]interface{}{
+				"remote_addr": transport.RemoteAddr(),
+			},
+			"slave": slave.WindowTitleVariables(),
+		},
+	)
+
+	titleBuf := new(bytes.Buffer)
+	err = server.titleTemplate.Execute(titleBuf, titleVars)
+	if err != nil {
+		return errors.Wrapf(err, "failed to fill window title template")
+	}
+
+	opts := server.buildTTYOptions(titleBuf.Bytes())
+	tty, err := webtty.New(transport, slave, opts...)
+	if err != nil {
+		return errors.Wrapf(err, "failed to create webtty")
+	}
+
+	return server.runTTYWithTmux(ctx, tty)
 }
 
 // handleTmuxEvents polls for tmux layout changes and sends updates to the client
@@ -217,14 +336,14 @@ func (server *Server) handleTmuxEvents(ctx context.Context, tty *webtty.WebTTY) 
 func (server *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	indexVars, err := server.indexVariables(r)
 	if err != nil {
-		http.Error(w, "Internal Server Error", 500)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 
 	indexBuf := new(bytes.Buffer)
 	err = server.indexTemplate.Execute(indexBuf, indexVars)
 	if err != nil {
-		http.Error(w, "Internal Server Error", 500)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 
@@ -234,14 +353,14 @@ func (server *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 func (server *Server) handleManifest(w http.ResponseWriter, r *http.Request) {
 	indexVars, err := server.indexVariables(r)
 	if err != nil {
-		http.Error(w, "Internal Server Error", 500)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 
 	indexBuf := new(bytes.Buffer)
 	err = server.manifestTemplate.Execute(indexBuf, indexVars)
 	if err != nil {
-		http.Error(w, "Internal Server Error", 500)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 
@@ -273,8 +392,10 @@ func (server *Server) indexVariables(r *http.Request) (map[string]interface{}, e
 
 func (server *Server) handleAuthToken(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/javascript")
-	// @TODO hashing?
-	w.Write([]byte("var gotty_auth_token = '" + server.options.Credential + "';"))
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
+	authToken := server.issueAuthToken(r)
+	w.Write([]byte("var gotty_auth_token = " + strconv.Quote(authToken) + ";"))
 }
 
 func (server *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
@@ -282,9 +403,38 @@ func (server *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	lines := []string{
 		"var gotty_term = 'xterm';",
 		"var gotty_ws_query_args = '" + server.options.WSQueryArgs + "';",
+		fmt.Sprintf("var gotty_webtransport_enabled = %t;", server.options.EnableWebTransport),
+		// WebTransport uses the same port as HTTP (UDP instead of TCP)
 	}
 
 	w.Write([]byte(strings.Join(lines, "\n")))
+}
+
+func (server *Server) buildTTYOptions(titleBytes []byte) []webtty.Option {
+	opts := []webtty.Option{
+		webtty.WithWindowTitle(titleBytes),
+	}
+	if server.options.PermitWrite {
+		opts = append(opts, webtty.WithPermitWrite())
+	}
+	if server.options.EnableReconnect {
+		opts = append(opts, webtty.WithReconnect(server.options.ReconnectTime))
+	}
+	if server.options.Width > 0 {
+		opts = append(opts, webtty.WithFixedColumns(server.options.Width))
+	}
+	if server.options.Height > 0 {
+		opts = append(opts, webtty.WithFixedRows(server.options.Height))
+	}
+	return opts
+}
+
+func (server *Server) runTTYWithTmux(ctx context.Context, tty *webtty.WebTTY) error {
+	if server.tmuxCtrl != nil {
+		tty.SetTmuxController(server.tmuxCtrl)
+		go server.handleTmuxEvents(ctx, tty)
+	}
+	return tty.Run(ctx)
 }
 
 // titleVariables merges maps in a specified order.

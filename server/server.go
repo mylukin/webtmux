@@ -39,6 +39,11 @@ type Server struct {
 	// Tmux support
 	tmuxSession string
 	tmuxCtrl    *tmux.Controller
+
+	// WebTransport support
+	wtServer *WebTransportServer
+
+	authTokens *authTokenStore
 }
 
 // New creates a new instance of Server.
@@ -84,10 +89,8 @@ func New(factory Factory, options *Options) (*Server, error) {
 			return matcher.MatchString(r.Header.Get("Origin"))
 		}
 	} else {
-		// Default: allow all origins (auth provides protection)
-		originChekcer = func(r *http.Request) bool {
-			return true
-		}
+		// Default: only allow same-origin requests.
+		originChekcer = sameOrigin
 	}
 
 	server := &Server{
@@ -103,6 +106,7 @@ func New(factory Factory, options *Options) (*Server, error) {
 		indexTemplate:    indexTemplate,
 		titleTemplate:    titleTemplate,
 		manifestTemplate: manifestTemplate,
+		authTokens:       newAuthTokenStore(authTokenTTL),
 	}
 
 	// Detect tmux session from command
@@ -216,8 +220,8 @@ func (server *Server) Run(ctx context.Context, options ...RunOption) error {
 		if server.options.EnableTLS {
 			crtFile := homedir.Expand(server.options.TLSCrtFile)
 			keyFile := homedir.Expand(server.options.TLSKeyFile)
-			log.Printf("TLS crt file: " + crtFile)
-			log.Printf("TLS key file: " + keyFile)
+			log.Printf("TLS crt file: %s", crtFile)
+			log.Printf("TLS key file: %s", keyFile)
 
 			err = srv.ServeTLS(listener, crtFile, keyFile)
 		} else {
@@ -228,10 +232,37 @@ func (server *Server) Run(ctx context.Context, options ...RunOption) error {
 		}
 	}()
 
+	// Start WebTransport server if enabled
+	wtErr := make(chan error, 1)
+	if server.options.EnableWebTransport {
+		wtServer, err := NewWebTransportServer(server.options, path)
+		if err != nil {
+			return errors.Wrapf(err, "failed to create WebTransport server")
+		}
+		server.wtServer = wtServer
+
+		// Setup WebTransport handlers
+		wtMux := http.NewServeMux()
+		wtMux.HandleFunc(path+"wt", server.generateHandleWT(cctx, cancel, counter))
+
+		go func() {
+			crtFile := homedir.Expand(server.options.TLSCrtFile)
+			keyFile := homedir.Expand(server.options.TLSKeyFile)
+			if err := wtServer.ListenAndServeTLS(cctx, crtFile, keyFile, wtMux); err != nil {
+				wtErr <- err
+			}
+		}()
+
+		log.Printf("WebTransport server enabled on UDP port %s (same as HTTP)", server.options.Port)
+	}
+
 	go func() {
 		select {
 		case <-opts.gracefullCtx.Done():
 			srv.Shutdown(context.Background())
+			if server.wtServer != nil {
+				server.wtServer.Close()
+			}
 		case <-cctx.Done():
 		}
 	}()
@@ -243,8 +274,14 @@ func (server *Server) Run(ctx context.Context, options ...RunOption) error {
 		} else {
 			cancel()
 		}
+	case err = <-wtErr:
+		log.Printf("WebTransport server error: %v", err)
+		cancel()
 	case <-cctx.Done():
 		srv.Close()
+		if server.wtServer != nil {
+			server.wtServer.Close()
+		}
 		err = cctx.Err()
 	}
 

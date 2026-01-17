@@ -10,6 +10,7 @@ type Options struct {
 	Path                string `hcl:"path" flagName:"path" flagSName:"m" flagDescribe:"Base path" default:"/"`
 	PermitWrite         bool   `hcl:"permit_write" flagName:"permit-write" flagSName:"w" flagDescribe:"Permit clients to write to the TTY (BE CAREFUL)" default:"false"`
 	EnableBasicAuth     bool   `hcl:"enable_basic_auth" default:"true"`
+	AuthIPBinding       bool   `hcl:"auth_ip_binding" flagName:"auth-ip-binding" flagDescribe:"Bind auth tokens to client IP (set false behind proxies)" default:"true"`
 	Credential          string `hcl:"credential" flagName:"credential" flagSName:"c" flagDescribe:"Credential for Basic Authentication (ex: user:pass)" default:""`
 	NoAuth              bool   `hcl:"no_auth" flagName:"no-auth" flagDescribe:"Disable authentication (NOT RECOMMENDED)" default:"false"`
 	EnableRandomUrl     bool   `hcl:"enable_random_url" flagName:"random-url" flagSName:"r" flagDescribe:"Add a random string to the URL" default:"false"`
@@ -21,8 +22,8 @@ type Options struct {
 	TLSCACrtFile        string `hcl:"tls_ca_crt_file" flagName:"tls-ca-crt" flagDescribe:"TLS/SSL CA certificate file for client certifications" default:"~/.gotty.ca.crt"`
 	IndexFile           string `hcl:"index_file" flagName:"index" flagDescribe:"Custom index.html file" default:""`
 	TitleFormat         string `hcl:"title_format" flagName:"title-format" flagSName:"" flagDescribe:"Title format of browser window" default:"{{ .command }}@{{ .hostname }}"`
-	EnableReconnect     bool   `hcl:"enable_reconnect" flagName:"reconnect" flagDescribe:"Enable reconnection" default:"false"`
-	ReconnectTime       int    `hcl:"reconnect_time" flagName:"reconnect-time" flagDescribe:"Time to reconnect" default:"10"`
+	EnableReconnect     bool   `hcl:"enable_reconnect" flagName:"reconnect" flagDescribe:"Enable reconnection" default:"true"`
+	ReconnectTime       int    `hcl:"reconnect_time" flagName:"reconnect-time" flagDescribe:"Time to reconnect" default:"3"`
 	MaxConnection       int    `hcl:"max_connection" flagName:"max-connection" flagDescribe:"Maximum connection to gotty" default:"0"`
 	Once                bool   `hcl:"once" flagName:"once" flagDescribe:"Accept only one client and exit on disconnection" default:"false"`
 	Timeout             int    `hcl:"timeout" flagName:"timeout" flagDescribe:"Timeout seconds for waiting a client(0 to disable)" default:"0"`
@@ -35,12 +36,24 @@ type Options struct {
 	EnableWebGL         bool   `hcl:"enable_webgl" flagName:"enable-webgl" flagDescribe:"Enable WebGL renderer" default:"true"`
 	Quiet               bool   `hcl:"quiet" flagName:"quiet" flagDescribe:"Don't log" default:"false"`
 
+	// WebTransport options (uses same port as HTTP server, but UDP instead of TCP)
+	EnableWebTransport bool `hcl:"enable_webtransport" flagName:"webtransport" flagDescribe:"Enable WebTransport support (requires TLS, uses same port over UDP)" default:"false"`
+
 	TitleVariables map[string]interface{}
 }
 
 func (options *Options) Validate() error {
 	if options.EnableTLSClientAuth && !options.EnableTLS {
 		return errors.New("TLS client authentication is enabled, but TLS is not enabled")
+	}
+	if options.EnableWebTransport && !options.EnableTLS {
+		return errors.New("WebTransport requires TLS to be enabled")
+	}
+	if options.PermitArguments && !options.EnableBasicAuth {
+		return errors.New("permit-arguments requires authentication to be enabled")
+	}
+	if options.PassHeaders && !options.EnableBasicAuth {
+		return errors.New("pass-headers requires authentication to be enabled")
 	}
 	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -53,9 +54,8 @@ func main() {
 
 	app.Action = func(c *cli.Context) error {
 		if c.NArg() == 0 {
-			msg := "Error: No command given."
 			cli.ShowAppHelp(c)
-			exit(fmt.Errorf(msg), 1)
+			exit(errors.New("Error: No command given."), 1)
 		}
 
 		configFile := c.String("config")
